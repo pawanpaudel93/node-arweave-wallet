@@ -7,6 +7,9 @@ packages:
 ignoreWorkspaceRootCheck: true
 shellEmulator: true
 
+catalog:
+  '@dha-team/arbundles': ^1.0.4
+  arweave: ^1.15.7
 catalogs:
   cli:
     '@antfu/eslint-config': ^5.4.1

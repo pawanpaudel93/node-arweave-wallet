@@ -1,4 +1,4 @@
-# arweave-wallet-node-relay
+# node-arweave-wallet
 
 [![npm version][npm-version-src]][npm-version-href]
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
@@ -12,13 +12,13 @@
 
 <!-- Badges -->
 
-[npm-version-src]: https://img.shields.io/npm/v/arweave-wallet-node-relay?style=flat&colorA=080f12&colorB=1fa669
-[npm-version-href]: https://npmjs.com/package/arweave-wallet-node-relay
-[npm-downloads-src]: https://img.shields.io/npm/dm/arweave-wallet-node-relay?style=flat&colorA=080f12&colorB=1fa669
-[npm-downloads-href]: https://npmjs.com/package/arweave-wallet-node-relay
-[bundle-src]: https://img.shields.io/bundlephobia/minzip/arweave-wallet-node-relay?style=flat&colorA=080f12&colorB=1fa669&label=minzip
-[bundle-href]: https://bundlephobia.com/result?p=arweave-wallet-node-relay
-[license-src]: https://img.shields.io/github/license/pawanpaudel93/arweave-wallet-node-relay.svg?style=flat&colorA=080f12&colorB=1fa669
-[license-href]: https://github.com/pawanpaudel93/arweave-wallet-node-relay/blob/main/LICENSE
+[npm-version-src]: https://img.shields.io/npm/v/node-arweave-wallet?style=flat&colorA=080f12&colorB=1fa669
+[npm-version-href]: https://npmjs.com/package/node-arweave-wallet
+[npm-downloads-src]: https://img.shields.io/npm/dm/node-arweave-wallet?style=flat&colorA=080f12&colorB=1fa669
+[npm-downloads-href]: https://npmjs.com/package/node-arweave-wallet
+[bundle-src]: https://img.shields.io/bundlephobia/minzip/node-arweave-wallet?style=flat&colorA=080f12&colorB=1fa669&label=minzip
+[bundle-href]: https://bundlephobia.com/result?p=node-arweave-wallet
+[license-src]: https://img.shields.io/github/license/pawanpaudel93/node-arweave-wallet.svg?style=flat&colorA=080f12&colorB=1fa669
+[license-href]: https://github.com/pawanpaudel93/node-arweave-wallet/blob/main/LICENSE
 [jsdocs-src]: https://img.shields.io/badge/jsdocs-reference-080f12?style=flat&colorA=080f12&colorB=1fa669
-[jsdocs-href]: https://www.jsdocs.io/package/arweave-wallet-node-relay
+[jsdocs-href]: https://www.jsdocs.io/package/node-arweave-wallet

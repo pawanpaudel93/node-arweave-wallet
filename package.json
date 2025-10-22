@@ -1,5 +1,5 @@
 {
-  "name": "arweave-wallet-node-relay",
+  "name": "node-arweave-wallet",
   "type": "module",
   "version": "0.0.0",
   "packageManager": "pnpm@10.17.1",
@@ -7,12 +7,12 @@
   "author": "Pawan Paudel <pawanpaudel93@gmail.com>",
   "license": "MIT",
   "funding": "https://github.com/sponsors/pawanpaudel93",
-  "homepage": "https://github.com/pawanpaudel93/arweave-wallet-node-relay#readme",
+  "homepage": "https://github.com/pawanpaudel93/node-arweave-wallet#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pawanpaudel93/arweave-wallet-node-relay.git"
+    "url": "git+https://github.com/pawanpaudel93/node-arweave-wallet.git"
   },
-  "bugs": "https://github.com/pawanpaudel93/arweave-wallet-node-relay/issues",
+  "bugs": "https://github.com/pawanpaudel93/node-arweave-wallet/issues",
   "keywords": [],
   "sideEffects": false,
   "exports": {
@@ -35,6 +35,10 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "prepare": "simple-git-hooks"
+  },
+  "dependencies": {
+    "@dha-team/arbundles": "catalog:",
+    "arweave": "catalog:"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:cli",

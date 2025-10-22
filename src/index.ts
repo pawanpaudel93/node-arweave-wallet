@@ -80,7 +80,7 @@ const arweave = new Arweave({
   protocol: 'https',
 })
 
-export class ArweaveWalletNode {
+export class NodeArweaveWallet {
   private server: http.Server | null = null
   private port: number = 0
   private pendingRequests: Map<
@@ -1598,6 +1598,6 @@ export class ArweaveWalletNode {
  * Creates a DataItemSigner compatible with @permaweb/aoconnect
  * Similar to aoconnect's createDataItemSigner but uses browser wallet
  */
-export function createDataItemSigner(arweaveWalletNode: ArweaveWalletNode) {
-  return arweaveWalletNode.getDataItemSigner()
+export function createDataItemSigner(arweaveWallet: NodeArweaveWallet) {
+  return arweaveWallet.getDataItemSigner()
 }

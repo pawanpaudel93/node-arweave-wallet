@@ -20,8 +20,9 @@ export const DEFAULT_PERMISSIONS: PermissionType[] = [
 async function demonstrateWalletAPIs() {
   console.log('🚀 Starting Browser Wallet API Demo\n')
 
-  // Initialize the browser wallet arweaveWallet
-  const arweaveWallet = new NodeArweaveWallet()
+  // Initialize the browser wallet arweaveWallet with consistent port
+  // You can specify a custom port, or use default (3737)
+  const arweaveWallet = new NodeArweaveWallet({ port: 3737 })
   console.log('📱 Initializing browser wallet arweaveWallet...')
   await arweaveWallet.initialize()
 

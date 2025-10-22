@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<!--
+    Browser Wallet Signer Interface
+    
+    This HTML file provides the user interface for connecting and interacting
+    with Arweave browser wallets (Wander) from Node.js applications.
+    
+    The JavaScript logic is loaded from signer.js at build time.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AO Deploy - Browser Wallet Signer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.signing {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .wallet-address {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin-top: 10px;
+            color: #333;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .log {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .log-entry {
+            padding: 5px 0;
+            color: #666;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry.success {
+            color: #28a745;
+        }
+
+        .log-entry.error {
+            color: #dc3545;
+        }
+
+        .instructions {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .instructions strong {
+            color: #2196F3;
+        }
+    </style>
+    <script src="https://unpkg.com/arweave/bundles/web.bundle.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 AO Deploy Wallet Signer</h1>
+        <p class="subtitle">Sign transactions with your Arweave wallet</p>
+
+        <div id="status" class="status connecting">
+            <div class="spinner"></div>
+            Connecting to wallet...
+        </div>
+
+        <div id="walletInfo" style="display: none;">
+            <div class="wallet-address" id="address"></div>
+        </div>
+
+        <div class="instructions">
+            <strong>📋 Instructions:</strong><br>
+            1. Make sure you have Wander installed<br>
+            2. Click "Connect Wallet" below<br>
+            3. Approve the requested permissions in your wallet<br>
+            4. Keep this window open during the process<br>
+            <br>
+            <strong>✨ Supported Operations:</strong><br>
+            • Address access & wallet management<br>
+            • Transaction signing & dispatch<br>
+            • Data item signing (ANS-104)<br>
+            • Message signing & verification<br>
+            • Data encryption & decryption<br>
+            • Arbitrary data signatures<br>
+            • Token management
+        </div>
+
+        <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script src="signer.js"></script>
+</body>
+</html>
+

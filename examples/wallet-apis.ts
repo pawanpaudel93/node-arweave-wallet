@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-/* eslint-disable ts/explicit-function-return-type */
 import type { PermissionType } from 'node-arweave-wallet'
 import { Buffer } from 'node:buffer'
 import process from 'node:process'

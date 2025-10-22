@@ -1,5 +1,3 @@
-/* eslint-disable ts/explicit-function-return-type */
-/* eslint-disable no-console */
 import type { SignatureOptions } from 'arweave/node/lib/crypto/crypto-interface'
 import type Transaction from 'arweave/node/lib/transaction'
 import { Buffer } from 'node:buffer'

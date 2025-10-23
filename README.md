@@ -6,9 +6,17 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-Use Arweave browser wallets (Wander) from Node.js applications. Perfect for CLI tools and scripts that need wallet interactions.
+Use Arweave browser wallets ([Wander](https://wander.arweave.dev)) from Node.js applications. Perfect for CLI tools, scripts, and backend services that need secure wallet interactions without exposing private keys.
 
-## Installation
+## ✨ Features
+
+- 🔐 **Full Arweave Wallet API Support** - Complete implementation of the ArConnect API
+- 🌐 **Browser-Based Security** - Uses your existing browser wallet (Wander), keeping keys secure
+- 🚀 **Simple Async/Await Interface** - Clean, modern JavaScript/TypeScript API
+- 📦 **TypeScript First** - Full type definitions included
+- 🔌 **@permaweb/aoconnect Compatible** - Works seamlessly with `@permaweb/aoconnect`
+
+## 📦 Installation
 
 ```bash
 npm install node-arweave-wallet
@@ -18,20 +26,20 @@ pnpm add node-arweave-wallet
 yarn add node-arweave-wallet
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ```typescript
 import { NodeArweaveWallet } from 'node-arweave-wallet'
 
-// Create wallet instance with optional port configuration
+// Create wallet instance
 const wallet = new NodeArweaveWallet({
   port: 3737 // Optional: defaults to 3737, use 0 for random port
 })
 
-// Initialize and open browser for wallet connection
+// Initialize - opens browser for wallet connection
 await wallet.initialize()
 
-// Connect with permissions
+// Connect with required permissions
 await wallet.connect([
   'ACCESS_ADDRESS',
   'SIGN_TRANSACTION'
@@ -41,48 +49,493 @@ await wallet.connect([
 const address = await wallet.getActiveAddress()
 console.log('Connected wallet:', address)
 
+// Sign a transaction
+const tx = await arweave.createTransaction({ data: 'Hello Arweave!' })
+await wallet.sign(tx)
+
+// Submit the transaction
+const response = await arweave.transactions.post(tx)
+console.log(response.status)
+
 // Clean up when done
-await wallet.close()
+await wallet.close('success')
 ```
 
-## Configuration
+## 📖 API Reference
+
+### Initialization & Connection
+
+#### `new NodeArweaveWallet(config?)`
+
+Creates a new wallet instance.
+
+```typescript
+const wallet = new NodeArweaveWallet({
+  port: 3737 // Optional: port number (default: 3737, use 0 for random)
+})
+```
+
+#### `wallet.initialize()`
+
+Starts the local server and opens the browser for wallet connection.
+
+```typescript
+await wallet.initialize()
+```
+
+#### `wallet.connect(permissions, appInfo?, gateway?)`
+
+Programmatically connects to the wallet with specified permissions.
+
+```typescript
+await wallet.connect(
+  ['ACCESS_ADDRESS', 'SIGN_TRANSACTION'],
+  {
+    name: 'My App',
+    logo: 'https://example.com/logo.png'
+  }
+)
+```
+
+**Available Permissions:**
+
+- `ACCESS_ADDRESS` - Get active wallet address
+- `ACCESS_PUBLIC_KEY` - Get public key
+- `ACCESS_ALL_ADDRESSES` - Get all wallet addresses
+- `SIGN_TRANSACTION` - Sign Arweave transactions
+- `ENCRYPT` - Encrypt data
+- `DECRYPT` - Decrypt data
+- `SIGNATURE` - Sign arbitrary data
+- `ACCESS_ARWEAVE_CONFIG` - Get Arweave gateway config
+- `DISPATCH` - Sign and dispatch transactions
+- `ACCESS_TOKENS` - Access tokens & token balances
+
+#### `wallet.disconnect()`
+
+Disconnects from the wallet.
+
+```typescript
+await wallet.disconnect()
+```
+
+#### `wallet.close(status?)`
+
+Closes the wallet connection and server. Optionally marks completion status.
+
+```typescript
+await wallet.close('success') // or 'failed'
+```
+
+### Wallet Information
+
+#### `wallet.getActiveAddress()`
+
+Gets the currently active wallet address.
+
+```typescript
+const address = await wallet.getActiveAddress()
+// Returns: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+#### `wallet.getAllAddresses()`
+
+Gets all addresses in the wallet.
+
+```typescript
+const addresses = await wallet.getAllAddresses()
+// Returns: ["address1", "address2", ...]
+```
+
+#### `wallet.getWalletNames()`
+
+Gets wallet names mapped to addresses.
+
+```typescript
+const names = await wallet.getWalletNames()
+// Returns: { "address1": "Wallet 1", "address2": "Wallet 2" }
+```
+
+#### `wallet.getActivePublicKey()`
+
+Gets the public key of the active wallet.
+
+```typescript
+const publicKey = await wallet.getActivePublicKey()
+// Returns: base64 encoded public key
+```
+
+#### `wallet.getPermissions()`
+
+Gets currently granted permissions.
+
+```typescript
+const permissions = await wallet.getPermissions()
+// Returns: ["ACCESS_ADDRESS", "SIGN_TRANSACTION", ...]
+```
+
+#### `wallet.getArweaveConfig()`
+
+Gets the Arweave gateway configuration.
+
+```typescript
+const config = await wallet.getArweaveConfig()
+// Returns: { host: "arweave.net", port: 443, protocol: "https" }
+```
+
+### Transaction Signing
+
+#### `wallet.sign(transaction, options?)`
+
+Signs an Arweave transaction.
+
+```typescript
+import Arweave from 'arweave'
+
+const arweave = new Arweave({
+  host: 'arweave.net',
+  port: 443,
+  protocol: 'https'
+})
+
+const tx = await arweave.createTransaction({
+  data: 'Hello Arweave!'
+})
+
+await wallet.sign(tx)
+```
+
+#### `wallet.dispatch(transaction, options?)`
+
+Signs and dispatches a transaction to the network.
+
+```typescript
+const tx = await arweave.createTransaction({
+  data: 'Hello Arweave!'
+})
+tx.addTag('Content-Type', 'text/plain')
+
+const result = await wallet.dispatch(tx)
+console.log('Transaction ID:', result.id)
+// Returns: { id: "transaction_id", type?: "BASE" | "BUNDLED" }
+```
+
+### Data Item Signing (ANS-104)
+
+#### `wallet.signDataItem(dataItem, options?)`
+
+Signs a single data item for ANS-104 bundling.
+
+```typescript
+const signedDataItem = await wallet.signDataItem({
+  data: 'Hello from data item!',
+  tags: [
+    { name: 'Content-Type', value: 'text/plain' },
+    { name: 'App-Name', value: 'MyApp' }
+  ],
+  target: 'target_address',
+  anchor: 'anchor'
+})
+
+// Returns: Uint8Array of signed data item
+```
+
+#### `wallet.batchSignDataItem(dataItems, options?)`
+
+Signs multiple data items in a batch.
+
+```typescript
+const results = await wallet.batchSignDataItem([
+  {
+    data: 'First item',
+    tags: [{ name: 'Type', value: 'Test1' }]
+  },
+  {
+    data: 'Second item',
+    tags: [{ name: 'Type', value: 'Test2' }]
+  }
+])
+
+// Returns: Array<{ id: string, raw: Uint8Array }>
+```
+
+#### `wallet.getDataItemSigner()` or `createDataItemSigner(wallet)`
+
+Creates a signer compatible with `@permaweb/aoconnect`.
+
+```typescript
+import { message } from '@permaweb/aoconnect'
+import { createDataItemSigner } from 'node-arweave-wallet'
+
+const signer = createDataItemSigner(wallet)
+
+const messageId = await message({
+  process: 'PROCESS_ID',
+  signer,
+  tags: [{ name: 'Action', value: 'Hello' }],
+  data: 'Hello from browser wallet!'
+})
+```
+
+### Encryption & Decryption
+
+#### `wallet.encrypt(data, options)`
+
+Encrypts data using the wallet's public key.
+
+```typescript
+const encrypted = await wallet.encrypt('Secret message', {
+  algorithm: 'RSA-OAEP',
+  hash: 'SHA-256'
+})
+
+// Returns: Uint8Array
+```
+
+#### `wallet.decrypt(data, options)`
+
+Decrypts data using the wallet's private key.
+
+```typescript
+const decrypted = await wallet.decrypt(encrypted, {
+  algorithm: 'RSA-OAEP',
+  hash: 'SHA-256'
+})
+
+const text = new TextDecoder().decode(decrypted)
+// Returns: "Secret message"
+```
+
+### Message Signing & Verification
+
+#### `wallet.signMessage(data, options?)`
+
+Signs a message with the wallet's private key.
+
+```typescript
+const data = new TextEncoder().encode('Message to sign')
+const signature = await wallet.signMessage(data, {
+  hashAlgorithm: 'SHA-256' // or 'SHA-384', 'SHA-512'
+})
+
+// Returns: Uint8Array signature
+```
+
+#### `wallet.verifyMessage(data, signature, publicKey?, options?)`
+
+Verifies a message signature.
+
+```typescript
+const isValid = await wallet.verifyMessage(
+  data,
+  signature,
+  publicKey, // optional
+  { hashAlgorithm: 'SHA-256' }
+)
+
+// Returns: boolean
+```
+
+#### `wallet.signature(data, algorithm)`
+
+Signs arbitrary data with custom algorithm.
+
+```typescript
+const data = new TextEncoder().encode('Data to sign')
+const signature = await wallet.signature(data, {
+  name: 'RSA-PSS',
+  saltLength: 32
+})
+
+// Returns: Uint8Array
+```
+
+#### `wallet.privateHash(data, options?)`
+
+Creates a hash using the wallet's private key.
+
+```typescript
+const data = new TextEncoder().encode('Data to hash')
+const hash = await wallet.privateHash(data, {
+  hashAlgorithm: 'SHA-256'
+})
+
+// Returns: Uint8Array
+```
+
+## 🛠️ Configuration
 
 ### Port Configuration
 
-You can configure the local server port when creating the wallet instance:
+The package uses a local HTTP server to communicate with the browser. You can configure the port:
 
 ```typescript
-// Use default port (3737)
+// Default port (3737)
 const wallet = new NodeArweaveWallet()
 
-// Use a specific port
+// Custom port
 const wallet = new NodeArweaveWallet({ port: 8080 })
 
-// Use a random available port
+// Random available port (useful for testing or avoiding conflicts)
 const wallet = new NodeArweaveWallet({ port: 0 })
 ```
 
-The consistent port ensures your application always runs on the same port, which is useful for:
+## 💡 Usage Examples
 
-- Development workflows
-- Firewall configurations
-- Browser extensions that whitelist specific ports
-- Testing and debugging
+### CLI Tool Example
 
-## Features
+```typescript
+#!/usr/bin/env node
+import Arweave from 'arweave'
+import { NodeArweaveWallet } from 'node-arweave-wallet'
 
-- 🔐 Full Arweave Wallet API support
-- 📱 Works with Wander, and compatible wallets
-- 🚀 Simple async/await interface
-- 📦 TypeScript support
-- 🔄 Transaction signing and dispatch
-- 📝 Data item signing (ANS-104)
-- 🔒 Encryption/decryption support
-- ✍️ Message signing and verification
+async function deployFile(filePath: string) {
+  const wallet = new NodeArweaveWallet()
 
-## License
+  try {
+    console.log('🚀 Initializing wallet...')
+    await wallet.initialize()
 
-[MIT](./LICENSE) License © [Pawan Paudel](https://github.com/pawanpaudel93)
+    await wallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION', 'DISPATCH'])
+
+    const address = await wallet.getActiveAddress()
+    console.log(`✅ Connected: ${address}`)
+
+    const arweave = new Arweave({
+      host: 'arweave.net',
+      port: 443,
+      protocol: 'https'
+    })
+
+    const data = fs.readFileSync(filePath)
+    const tx = await arweave.createTransaction({ data })
+    tx.addTag('Content-Type', 'text/plain')
+
+    console.log('📝 Signing and deploying...')
+    const result = await wallet.dispatch(tx)
+
+    console.log(`✅ Deployed! TX: ${result.id}`)
+    console.log(`🔗 https://arweave.net/${result.id}`)
+
+    await wallet.close('success')
+  }
+  catch (error) {
+    console.error('❌ Error:', error.message)
+    await wallet.close('failed')
+    process.exit(1)
+  }
+}
+
+deployFile(process.argv[2])
+```
+
+### AO Process Example
+
+```typescript
+import { message, result } from '@permaweb/aoconnect'
+import { createDataItemSigner, NodeArweaveWallet } from 'node-arweave-wallet'
+
+async function sendAOMessage() {
+  const wallet = new NodeArweaveWallet()
+  await wallet.initialize()
+  await wallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION'])
+
+  const signer = createDataItemSigner(wallet)
+
+  const messageId = await message({
+    process: 'PROCESS_ID',
+    signer,
+    tags: [
+      { name: 'Action', value: 'Balance' }
+    ]
+  })
+
+  console.log('Message sent:', messageId)
+
+  const { Messages } = await result({
+    message: messageId,
+    process: 'PROCESS_ID'
+  })
+
+  console.log('Response:', Messages[0].Data)
+
+  await wallet.close('success')
+}
+```
+
+### Batch Data Item Example
+
+```typescript
+import { NodeArweaveWallet } from 'node-arweave-wallet'
+
+async function batchUpload(files: string[]) {
+  const wallet = new NodeArweaveWallet()
+  await wallet.initialize()
+  await wallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION'])
+
+  const dataItems = files.map(file => ({
+    data: fs.readFileSync(file),
+    tags: [
+      { name: 'Content-Type', value: 'application/octet-stream' },
+      { name: 'File-Name', value: path.basename(file) }
+    ]
+  }))
+
+  console.log(`📝 Signing ${files.length} files...`)
+  const signed = await wallet.batchSignDataItem(dataItems)
+
+  console.log('✅ All files signed!')
+  signed.forEach((item, i) => {
+    console.log(`   ${i + 1}. ${item.id}`)
+  })
+
+  await wallet.close('success')
+}
+```
+
+## 🔒 Security
+
+- **No Private Keys in Node.js** - Your private keys never leave the browser wallet
+- **Browser Extension Security** - Leverages battle-tested browser wallet security
+- **Local-Only Server** - Server only listens on `127.0.0.1` (localhost)
+- **User Confirmation** - All transactions require explicit user approval in the browser
+- **Permission-Based** - Request only the permissions you need
+
+## 🤝 Browser Wallet Compatibility
+
+Works with any arweaveWallet compatible browser wallet:
+
+- ✅ [Wander](https://wander.arweave.dev) (Recommended)
+- ✅ Any wallet implementing the arweaveWallet API
+
+## 🐛 Troubleshooting
+
+### Port Already in Use
+
+If port 3737 is already in use:
+
+```typescript
+// Use a different port
+const wallet = new NodeArweaveWallet({ port: 8080 })
+
+// Or let the system choose an available port
+const wallet = new NodeArweaveWallet({ port: 0 })
+```
+
+### Browser Doesn't Open Automatically
+
+The URL will be printed to the console. Open it manually:
+
+```sh
+http://localhost:3737
+```
+
+### Connection Timeout
+
+Keep the browser tab open while signing transactions. The package has a generous 5-minute timeout, but closing the tab will interrupt operations.
+
+## 📄 License
+
+[MIT](./LICENSE.md) License © [Pawan Paudel](https://github.com/pawanpaudel93)
 
 <!-- Badges -->
 

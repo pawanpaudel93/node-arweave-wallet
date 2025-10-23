@@ -340,7 +340,7 @@ const requestHandlers = {
     }
   },
 
-  async address(params, requestId) {
+  async getActiveAddress(params, requestId) {
     log('Providing wallet address...')
     await sendResponse(requestId, walletAddress)
     log('Address sent successfully', 'success')
@@ -603,9 +603,10 @@ async function handleRequest(request) {
     setTimeout(() => removeFromQueue(request.id), QUEUE_CLEANUP_DELAY)
   }
   catch (error) {
-    setState(States.ERROR, `Operation failed: ${error.message}`)
-    log(`Error: ${error.message}`, 'error')
-    await sendResponse(request.id, null, error.message)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    setState(States.ERROR, `Operation failed: ${errorMessage}`)
+    log(`Error: ${errorMessage}`, 'error')
+    await sendResponse(request.id, null, errorMessage)
     removeFromQueue(request.id)
 
     // Only reset to CONNECTED if we actually have a wallet connected

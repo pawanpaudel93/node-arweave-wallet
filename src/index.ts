@@ -94,7 +94,6 @@ export interface NodeArweaveWalletConfig {
 const DEFAULT_PORT = 3737
 const DEFAULT_HOST = '127.0.0.1'
 const REQUEST_TIMEOUT = 120000 // 120 seconds
-const ADDRESS_TIMEOUT = 60000 // 60 seconds
 const BROWSER_TIMEOUT = 30000 // 30 seconds
 const HEARTBEAT_CHECK_INTERVAL = 10000 // 10 seconds - check infrequently to reduce overhead
 const HEARTBEAT_TIMEOUT = 300000 // 5 minutes - very generous timeout for user interactions
@@ -201,26 +200,8 @@ export class NodeArweaveWallet {
     if (this.address)
       return this.address
 
-    const id = nanoid()
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(id)
-        reject(new Error('Timeout waiting for wallet address'))
-      }, ADDRESS_TIMEOUT)
-
-      this.pendingRequests.set(id, {
-        resolve: (value: string) => {
-          clearTimeout(timeout)
-          this.address = value
-          resolve(value)
-        },
-        reject: (error: Error) => {
-          clearTimeout(timeout)
-          reject(error)
-        },
-        data: { type: 'address', params: {} },
-      })
-    })
+    this.address = await this.makeWalletRequest<string>('getActiveAddress', {})
+    return this.address
   }
 
   async disconnect(): Promise<void> {
@@ -258,7 +239,15 @@ export class NodeArweaveWallet {
 
   async sign(transaction: Transaction, options?: SignatureOptions): Promise<Transaction> {
     const data = await this.makeWalletRequest<any>('sign', { transaction, options })
-    return arweave.transactions.fromRaw(data)
+    const signedTx = arweave.transactions.fromRaw(data)
+    transaction.setSignature({
+      id: signedTx.id,
+      owner: signedTx.owner,
+      reward: signedTx.reward,
+      tags: signedTx.tags,
+      signature: signedTx.signature,
+    })
+    return transaction
   }
 
   async dispatch(transaction: Transaction, options?: SignatureOptions): Promise<DispatchResult> {

@@ -125,13 +125,6 @@ async function demonstrateWalletAPIs() {
       data: 'Hello from ao-deploy!',
     })
     const signedTx = await arweaveWallet.sign(transaction)
-    transaction.setSignature({
-      id: signedTx.id,
-      owner: signedTx.owner,
-      reward: signedTx.reward,
-      tags: signedTx.tags,
-      signature: signedTx.signature,
-    })
     if (signedTx) {
       console.log('✅ Transaction signed:', signedTx)
     }
@@ -200,7 +193,7 @@ async function demonstrateWalletAPIs() {
     // 14. Private Hash (hash with private key)
     console.log('\n1️⃣4️⃣ Creating private hash...')
     const dataToHash = new TextEncoder().encode('Data to hash privately')
-    const privateHash = await arweaveWallet.privateHash(dataToHash.buffer, {
+    const privateHash = await arweaveWallet.privateHash(dataToHash, {
       hashAlgorithm: 'SHA-256',
     })
     console.log(
@@ -208,25 +201,8 @@ async function demonstrateWalletAPIs() {
       `${Buffer.from(privateHash).toString('base64').substring(0, 50)}...`,
     )
 
-    // 15. Add Token to Wallet
-    console.log('\n1️⃣5️⃣ Adding token to wallet...')
-    const exampleTokenId = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' // Example AO token
-    console.log('ℹ️  This demonstrates adding an AO token to the wallet')
-    console.log(`    Token ID: ${exampleTokenId}`)
-    console.log('    Uncomment the lines below to test:')
-    // await arweaveWallet.addToken(exampleTokenId);
-    // console.log("✅ Token added to wallet");
-    console.log('✅ addToken() method available')
-
-    // 16. Check if Token is Added
-    console.log('\n1️⃣6️⃣ Checking if token is added...')
-    console.log('    Uncomment the lines below to test:')
-    // const isAdded = await arweaveWallet.isTokenAdded(exampleTokenId);
-    // console.log(`✅ Token ${isAdded ? 'is' : 'is not'} added to wallet`);
-    console.log('✅ isTokenAdded() method available')
-
-    // 17. Sign Message
-    console.log('\n1️⃣7️⃣ Signing a message...')
+    // 15. Sign Message
+    console.log('\n1️⃣5️⃣ Signing a message...')
     const data = new TextEncoder().encode(
       'The hash of this msg will be signed.',
     )
@@ -238,8 +214,8 @@ async function demonstrateWalletAPIs() {
       `${Buffer.from(messageSignature).toString('base64').substring(0, 50)}...`,
     )
 
-    // 18. Verify Message
-    console.log('\n1️⃣8️⃣ Verifying message signature...')
+    // 16. Verify Message
+    console.log('\n1️⃣6️⃣ Verifying message signature...')
     const isValidSignature = await arweaveWallet.verifyMessage(
       data,
       messageSignature,
@@ -252,8 +228,8 @@ async function demonstrateWalletAPIs() {
       `✅ Message signature is ${isValidSignature ? 'VALID' : 'INVALID'}`,
     )
 
-    // 19. Batch Sign Data Items
-    console.log('\n1️⃣9️⃣ Batch signing data items...')
+    // 17. Batch Sign Data Items
+    console.log('\n1️⃣7️⃣ Batch signing data items...')
     console.log('ℹ️  This demonstrates signing multiple data items at once')
     console.log('    Uncomment the lines below to test:')
     /*
@@ -275,8 +251,8 @@ async function demonstrateWalletAPIs() {
     */
     console.log('✅ batchSignDataItem() method available')
 
-    // 20. Disconnect wallet (optional)
-    console.log('\n2️⃣0️⃣ Disconnecting wallet...')
+    // 18. Disconnect wallet (optional)
+    console.log('\n1️⃣8️⃣ Disconnecting wallet...')
     console.log('ℹ️  Uncomment the line below to test disconnect:')
     // await arweaveWallet.disconnect();
     console.log(
@@ -285,7 +261,7 @@ async function demonstrateWalletAPIs() {
 
     // Success summary
     console.log(`\n${'='.repeat(60)}`)
-    console.log('✨ All 21 wallet API methods demonstrated successfully!')
+    console.log('✨ All 18 wallet API methods demonstrated successfully!')
     console.log('='.repeat(60))
     console.log('\n📝 Summary of demonstrated APIs:')
     console.log('   0. ✅ connect() - Connect wallet with permissions')
@@ -300,19 +276,13 @@ async function demonstrateWalletAPIs() {
     console.log('   9. ✅ decrypt() - Decrypt data')
     console.log('   10. ✅ sign() - Sign Arweave transaction')
     console.log('   11. ✅ dispatch() - Sign and send transaction')
-    console.log(
-      '   12. ✅ signDataItem() - Sign ANS-104 data item (direct API)',
-    )
-    console.log(
-      '   13. ✅ getSigner() / createDataItemSigner() - DataItem arweaveWallet',
-    )
+    console.log('   12. ✅ signDataItem() - Sign ANS-104 data item (direct API)')
+    console.log('   13. ✅ getSigner() / createDataItemSigner() - DataItem arweaveWallet')
     console.log('   14. ✅ privateHash() - Hash with private key')
-    console.log('   15. ✅ addToken() - Add AO token to wallet')
-    console.log('   16. ✅ isTokenAdded() - Check if token is added')
-    console.log('   17. ✅ signMessage() - Sign a message')
-    console.log('   18. ✅ verifyMessage() - Verify message signature')
-    console.log('   19. ✅ batchSignDataItem() - Batch sign data items')
-    console.log('   20. ✅ disconnect() - Disconnect wallet')
+    console.log('   15. ✅ signMessage() - Sign a message')
+    console.log('   16. ✅ verifyMessage() - Verify message signature')
+    console.log('   17. ✅ batchSignDataItem() - Batch sign data items')
+    console.log('   18. ✅ disconnect() - Disconnect wallet')
     console.log('='.repeat(60))
   }
   catch (error: any) {

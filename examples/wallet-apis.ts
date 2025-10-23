@@ -1,8 +1,8 @@
-import type { PermissionType } from 'node-arweave-wallet'
+import type { PermissionType } from '../src'
 import { Buffer } from 'node:buffer'
 import process from 'node:process'
 import Arweave from 'arweave'
-import { NodeArweaveWallet } from 'node-arweave-wallet'
+import { NodeArweaveWallet } from '../src'
 
 export const DEFAULT_PERMISSIONS: PermissionType[] = [
   'ACCESS_ADDRESS',

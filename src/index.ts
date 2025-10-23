@@ -307,7 +307,7 @@ export class NodeArweaveWallet {
 
   async verifyMessage(
     data: Uint8Array | ArrayBuffer,
-    signature: ArrayBuffer | string,
+    signature: Uint8Array | ArrayBuffer | string,
     publicKey?: string,
     options?: SignMessageOptions,
   ): Promise<boolean> {

@@ -11,8 +11,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AO Deploy - Browser Wallet Signer</title>
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Sign transactions with your Arweave wallet from Node.js applications">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23667eea;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23764ba2;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='20' fill='url(%23grad)'/%3E%3Cpath d='M50 25 L65 40 L65 55 L50 70 L35 55 L35 40 Z' fill='white' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle cx='50' cy='47' r='8' fill='url(%23grad)'/%3E%3C/svg%3E">
+    <title>Arweave Wallet Signer</title>
     <style>
+        :root {
+            --bg-gradient-start: #667eea;
+            --bg-gradient-end: #764ba2;
+            --container-bg: #ffffff;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #e9ecef;
+            --status-connecting-bg: #fff3cd;
+            --status-connecting-text: #856404;
+            --status-connected-bg: #d4edda;
+            --status-connected-text: #155724;
+            --status-error-bg: #f8d7da;
+            --status-error-text: #721c24;
+            --status-signing-bg: #d1ecf1;
+            --status-signing-text: #0c5460;
+            --log-bg: #f8f9fa;
+            --log-entry-border: #e9ecef;
+            --instructions-bg: #e7f3ff;
+            --instructions-border: #2196F3;
+            --button-gradient-start: #667eea;
+            --button-gradient-end: #764ba2;
+            --queue-item-bg: #f8f9fa;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+        }
+
+        [data-theme="dark"] {
+            --bg-gradient-start: #1a1a2e;
+            --bg-gradient-end: #16213e;
+            --container-bg: #0f1729;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #2a2a3e;
+            --status-connecting-bg: #3d3520;
+            --status-connecting-text: #ffd96a;
+            --status-connected-bg: #1e3a2e;
+            --status-connected-text: #6dd49e;
+            --status-error-bg: #3a1e1e;
+            --status-error-text: #ff8b8b;
+            --status-signing-bg: #1e2f3a;
+            --status-signing-text: #6dd4ff;
+            --log-bg: #1a1f2e;
+            --log-entry-border: #2a2a3e;
+            --instructions-bg: #1e2a3a;
+            --instructions-border: #4a9eff;
+            --button-gradient-start: #667eea;
+            --button-gradient-end: #764ba2;
+            --queue-item-bg: #1a1f2e;
+            --shadow-color: rgba(0, 0, 0, 0.6);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -21,34 +74,68 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            transition: background 0.3s ease;
         }
 
         .container {
-            background: white;
+            background: var(--container-bg);
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 500px;
+            box-shadow: 0 20px 60px var(--shadow-color);
+            max-width: 600px;
             width: 100%;
             padding: 40px;
             text-align: center;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
         }
 
-        h1 {
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
             font-size: 28px;
-            margin-bottom: 10px;
-            color: #333;
+            color: var(--text-primary);
+            flex: 1;
+            text-align: center;
+            margin: 0;
+            transition: color 0.3s ease;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 2px solid var(--text-secondary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            padding: 0;
+            margin: 0;
+        }
+
+        .theme-toggle:hover {
+            transform: rotate(20deg) scale(1.1);
+            border-color: var(--text-primary);
         }
 
         .subtitle {
-            color: #666;
+            color: var(--text-secondary);
             margin-bottom: 30px;
             font-size: 14px;
+            transition: color 0.3s ease;
         }
 
         .status {
@@ -56,41 +143,43 @@
             border-radius: 10px;
             margin-bottom: 20px;
             font-weight: 500;
+            transition: all 0.3s ease;
         }
 
         .status.connecting {
-            background: #fff3cd;
-            color: #856404;
+            background: var(--status-connecting-bg);
+            color: var(--status-connecting-text);
         }
 
         .status.connected {
-            background: #d4edda;
-            color: #155724;
+            background: var(--status-connected-bg);
+            color: var(--status-connected-text);
         }
 
         .status.error {
-            background: #f8d7da;
-            color: #721c24;
+            background: var(--status-error-bg);
+            color: var(--status-error-text);
         }
 
         .status.signing {
-            background: #d1ecf1;
-            color: #0c5460;
+            background: var(--status-signing-bg);
+            color: var(--status-signing-text);
         }
 
         .wallet-address {
-            background: #f8f9fa;
+            background: var(--log-bg);
             padding: 10px;
             border-radius: 8px;
             font-family: 'Courier New', monospace;
             font-size: 12px;
             word-break: break-all;
             margin-top: 10px;
-            color: #333;
+            color: var(--text-primary);
+            transition: background 0.3s ease, color 0.3s ease;
         }
 
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--button-gradient-start) 0%, var(--button-gradient-end) 100%);
             color: white;
             border: none;
             padding: 12px 30px;
@@ -102,24 +191,23 @@
             margin-top: 20px;
         }
 
-        button:hover {
+        button:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
 
-        button:active {
+        button:active:not(:disabled) {
             transform: translateY(0);
         }
 
         button:disabled {
             opacity: 0.6;
             cursor: not-allowed;
-            transform: none;
         }
 
         .spinner {
             border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border-top: 3px solid var(--button-gradient-start);
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -132,8 +220,116 @@
             100% { transform: rotate(360deg); }
         }
 
+        .queue-container {
+            background: var(--log-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: left;
+            display: none;
+            transition: background 0.3s ease;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .queue-container.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .queue-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .queue-container::-webkit-scrollbar-track {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .queue-container::-webkit-scrollbar-thumb {
+            background: var(--text-secondary);
+            border-radius: 4px;
+        }
+
+        .queue-container::-webkit-scrollbar-thumb:hover {
+            background: var(--text-primary);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .queue-header {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            font-size: 14px;
+            transition: color 0.3s ease;
+            position: sticky;
+            top: -15px;
+            background: var(--log-bg);
+            padding: 0 0 10px 0;
+            z-index: 1;
+        }
+
+        .queue-list {
+            /* Container for queue items */
+        }
+
+        .queue-item {
+            background: var(--queue-item-bg);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            transition: background 0.3s ease;
+        }
+
+        .queue-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .queue-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .queue-text {
+            flex: 1;
+            color: var(--text-secondary);
+            transition: color 0.3s ease;
+        }
+
+        .queue-status {
+            font-size: 10px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .queue-status.pending {
+            background: var(--status-connecting-bg);
+            color: var(--status-connecting-text);
+        }
+
+        .queue-status.processing {
+            background: var(--status-signing-bg);
+            color: var(--status-signing-text);
+        }
+
+        .queue-status.completed {
+            background: var(--status-connected-bg);
+            color: var(--status-connected-text);
+        }
+
         .log {
-            background: #f8f9fa;
+            background: var(--log-bg);
             border-radius: 10px;
             padding: 15px;
             margin-top: 20px;
@@ -142,12 +338,32 @@
             text-align: left;
             font-size: 12px;
             font-family: 'Courier New', monospace;
+            transition: background 0.3s ease;
+        }
+
+        .log::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .log::-webkit-scrollbar-track {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .log::-webkit-scrollbar-thumb {
+            background: var(--text-secondary);
+            border-radius: 4px;
+        }
+
+        .log::-webkit-scrollbar-thumb:hover {
+            background: var(--text-primary);
         }
 
         .log-entry {
             padding: 5px 0;
-            color: #666;
-            border-bottom: 1px solid #e9ecef;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--log-entry-border);
+            transition: color 0.3s ease, border-color 0.3s ease;
         }
 
         .log-entry:last-child {
@@ -163,25 +379,94 @@
         }
 
         .instructions {
-            background: #e7f3ff;
-            border-left: 4px solid #2196F3;
+            background: var(--instructions-bg);
+            border-left: 4px solid var(--instructions-border);
             padding: 15px;
             margin: 20px 0;
             text-align: left;
             border-radius: 5px;
             font-size: 14px;
-            color: #333;
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background 0.3s ease, color 0.3s ease;
         }
 
         .instructions strong {
-            color: #2196F3;
+            color: var(--instructions-border);
+            transition: color 0.3s ease;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 640px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 20px;
+                border-radius: 15px;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+
+            .theme-toggle {
+                width: 36px;
+                height: 36px;
+                font-size: 18px;
+            }
+
+            button {
+                padding: 10px 24px;
+                font-size: 14px;
+            }
+
+            .instructions {
+                font-size: 13px;
+                padding: 12px;
+            }
+
+            .log {
+                max-height: 150px;
+            }
+
+            .queue-container {
+                max-height: 180px;
+            }
+
+            .queue-item {
+                font-size: 11px;
+            }
+
+            .queue-status {
+                font-size: 9px;
+                padding: 3px 6px;
+            }
+        }
+
+        /* Reduced motion for accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
     <script src="https://unpkg.com/arweave/bundles/web.bundle.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>🔐 AO Deploy Wallet Signer</h1>
+        <div class="header">
+            <div style="width: 40px;"></div>
+            <h1>🔐 Arweave Wallet Signer</h1>
+            <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
+                <span id="themeIcon">🌙</span>
+            </button>
+        </div>
         <p class="subtitle">Sign transactions with your Arweave wallet</p>
 
         <div id="status" class="status connecting">
@@ -193,21 +478,17 @@
             <div class="wallet-address" id="address"></div>
         </div>
 
+        <div class="queue-container" id="queueContainer">
+            <div class="queue-header">📋 Request Queue</div>
+            <div class="queue-list" id="queueList"></div>
+        </div>
+
         <div class="instructions">
-            <strong>📋 Instructions:</strong><br>
-            1. Make sure you have Wander installed<br>
+            <strong>📋 How to Use:</strong><br>
+            1. Ensure you have <a href="https://www.wander.app" target="_blank" rel="noopener noreferrer">Wander</a> or any arweave wallet extension installed<br>
             2. Click "Connect Wallet" below<br>
             3. Approve the requested permissions in your wallet<br>
-            4. Keep this window open during the process<br>
-            <br>
-            <strong>✨ Supported Operations:</strong><br>
-            • Address access & wallet management<br>
-            • Transaction signing & dispatch<br>
-            • Data item signing (ANS-104)<br>
-            • Message signing & verification<br>
-            • Data encryption & decryption<br>
-            • Arbitrary data signatures<br>
-            • Token management
+            4. Keep this window open while signing transactions
         </div>
 
         <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
@@ -218,4 +499,3 @@
     <script src="signer.js"></script>
 </body>
 </html>
-

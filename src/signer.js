@@ -4,33 +4,18 @@
  * This script handles communication between the Node.js server and the
  * Arweave browser wallet extension (Wander).
  *
- * Features:
- * - Auto-detection and connection to browser wallet
- * - Long-polling for requests from Node.js
- * - Support for all Arweave wallet API methods
- * - Error handling and status updates
  */
 
-let connected = false
-let walletAddress = null
-let polling = false
-
-const arweave = Arweave.init({
-  host: 'arweave.net',
-  port: 443,
-  protocol: 'https',
-})
-
-function log(message, type = 'info') {
-  const logDiv = document.getElementById('log')
-  const entry = document.createElement('div')
-  entry.className = `log-entry ${type}`
-  entry.textContent = `${new Date().toLocaleTimeString()} - ${message}`
-  logDiv.appendChild(entry)
-  logDiv.scrollTop = logDiv.scrollHeight
+// ==================== Constants & Configuration ====================
+const States = {
+  DISCONNECTED: 'disconnected',
+  CONNECTING: 'connecting',
+  CONNECTED: 'connected',
+  SIGNING: 'signing',
+  ERROR: 'error',
+  COMPLETE: 'complete',
 }
 
-// Default permissions for comprehensive wallet operations
 const DEFAULT_PERMISSIONS = [
   'ACCESS_ADDRESS',
   'ACCESS_ALL_ADDRESSES',
@@ -44,503 +29,243 @@ const DEFAULT_PERMISSIONS = [
   'ACCESS_TOKENS',
 ]
 
-async function connectWallet() {
-  const statusDiv = document.getElementById('status')
-  const connectBtn = document.getElementById('connectBtn')
+const OPERATION_ICONS = {
+  connect: '🔗',
+  sign: '✍️',
+  dispatch: '🚀',
+  signDataItem: '📝',
+  encrypt: '🔒',
+  decrypt: '🔓',
+  signature: '✒️',
+  signMessage: '💬',
+  verifyMessage: '✓',
+  batchSignDataItem: '📚',
+  privateHash: '🔐',
+  addToken: '🪙',
+  address: '📍',
+  getAllAddresses: '📋',
+  getWalletNames: '👤',
+  getPermissions: '🔑',
+  getArweaveConfig: '⚙️',
+  getPublicKey: '🔐',
+  disconnect: '🔌',
+}
 
-  try {
-    if (!window.arweaveWallet) {
-      statusDiv.className = 'status error'
-      statusDiv.innerHTML = '❌ No Arweave wallet found. Please install Wander.'
-      log('No wallet extension found', 'error')
-      return
-    }
+const OPERATION_LABELS = {
+  connect: 'Connecting wallet',
+  sign: 'Signing transaction',
+  dispatch: 'Dispatching transaction',
+  signDataItem: 'Signing data item',
+  encrypt: 'Encrypting data',
+  decrypt: 'Decrypting data',
+  signature: 'Creating signature',
+  signMessage: 'Signing message',
+  verifyMessage: 'Verifying message',
+  batchSignDataItem: 'Batch signing items',
+  privateHash: 'Creating private hash',
+  addToken: 'Adding token',
+  isTokenAdded: 'Checking token',
+  address: 'Getting address',
+  getAllAddresses: 'Getting addresses',
+  getWalletNames: 'Getting wallet names',
+  getPermissions: 'Getting permissions',
+  getArweaveConfig: 'Getting config',
+  getPublicKey: 'Getting public key',
+  disconnect: 'Disconnecting',
+}
 
-    log('Requesting wallet connection...')
-    console.log('Wallet object available:', !!window.arweaveWallet)
-    console.log('Requesting permissions:', DEFAULT_PERMISSIONS)
+const MAX_LOG_ENTRIES = 50
+const QUEUE_CLEANUP_DELAY = 2000
+const ERROR_RESET_DELAY = 3000
+const WALLET_INJECTION_DELAY = 500
+const POLL_DELAY = 100
+const POLL_ERROR_DELAY = 1000
 
-    // Request comprehensive permissions for all wallet operations
-    await window.arweaveWallet.connect(DEFAULT_PERMISSIONS)
+// ==================== State Variables ====================
+let currentState = States.DISCONNECTED
+let walletAddress = null
+let polling = false
+const requestQueue = new Map()
 
-    walletAddress = await window.arweaveWallet.getActiveAddress()
+const arweave = Arweave.init({
+  host: 'arweave.net',
+  port: 443,
+  protocol: 'https',
+})
 
-    statusDiv.className = 'status connected'
-    statusDiv.innerHTML = '✅ Wallet connected successfully!'
+// ==================== DOM Cache ====================
+const dom = {
+  status: null,
+  walletInfo: null,
+  address: null,
+  connectBtn: null,
+  queueContainer: null,
+  queueList: null,
+  log: null,
+  themeIcon: null,
+}
 
-    document.getElementById('walletInfo').style.display = 'block'
-    document.getElementById('address').textContent = walletAddress
+function cacheDOMElements() {
+  dom.status = document.getElementById('status')
+  dom.walletInfo = document.getElementById('walletInfo')
+  dom.address = document.getElementById('address')
+  dom.connectBtn = document.getElementById('connectBtn')
+  dom.queueContainer = document.getElementById('queueContainer')
+  dom.queueList = document.getElementById('queueList')
+  dom.log = document.getElementById('log')
+  dom.themeIcon = document.getElementById('themeIcon')
+}
 
-    connectBtn.style.display = 'none'
+// ==================== State Management ====================
+function setState(newState, message = '') {
+  currentState = newState
+  if (!dom.status) return
 
-    log(`Connected: ${walletAddress}`, 'success')
-
-    connected = true
-
-    // Polling is already running from page load
+  const statusConfig = {
+    [States.DISCONNECTED]: ['connecting', message || 'Disconnected - Ready to connect'],
+    [States.CONNECTING]: ['connecting', `<div class="spinner"></div>${message || 'Connecting to wallet...'}`],
+    [States.CONNECTED]: ['connected', message || '✅ Wallet connected - Ready for signing'],
+    [States.SIGNING]: ['signing', message || '✍️ Processing request...'],
+    [States.ERROR]: ['error', `❌ ${message || 'An error occurred'}`],
+    [States.COMPLETE]: ['connected', message || '✅ Process complete! You can close this window.'],
   }
-  catch (error) {
-    // Handle error with proper message extraction
-    let errorMessage = 'Unknown error occurred'
-    if (error && typeof error === 'object') {
-      if (error.message) {
-        errorMessage = error.message
-      }
-      else if (error.toString && error.toString() !== '[object Object]') {
-        errorMessage = error.toString()
-      }
-      else {
-        errorMessage = 'User rejected wallet connection or wallet not available'
-      }
-    }
-    else if (error) {
-      errorMessage = String(error)
-    }
 
-    statusDiv.className = 'status error'
-    statusDiv.innerHTML = `❌ Failed to connect: ${errorMessage}`
-    log(`Connection failed: ${errorMessage}`, 'error')
+  const [className, html] = statusConfig[newState] || ['', '']
+  dom.status.className = `status ${className}`
+  dom.status.innerHTML = html
+}
 
-    // Show the connect button again so user can retry
-    connectBtn.style.display = 'block'
+// ==================== Theme Management ====================
+function getSystemTheme() {
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark'
+  }
+  return 'light'
+}
+
+function initTheme() {
+  // Check if user has a saved preference
+  const savedTheme = localStorage.getItem('theme')
+  
+  if (savedTheme) {
+    // User has manually selected a theme
+    setTheme(savedTheme, false)
+  }
+  else {
+    // Use system preference
+    const systemTheme = getSystemTheme()
+    setTheme(systemTheme, false)
+    log(`Using system theme: ${systemTheme}`)
+  }
+
+  // Listen for system theme changes (only if user hasn't manually set a theme)
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      // Only auto-switch if user hasn't manually set a preference
+      if (!localStorage.getItem('theme-manual')) {
+        const newTheme = e.matches ? 'dark' : 'light'
+        setTheme(newTheme, false)
+        log(`System theme changed to ${newTheme}`)
+      }
+    })
   }
 }
 
-async function handleRequest(request) {
-  const statusDiv = document.getElementById('status')
-
-  try {
-    // Get the full request data
-    const dataResponse = await fetch('/get-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: request.id }),
-    })
-    const requestData = await dataResponse.json()
-    const params = requestData.params || {}
-
-    if (request.type === 'connect') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '✍️ Please approve the connection in your wallet...'
-      log('Programmatic connection request...')
-
-      try {
-        console.log('Connecting with permissions:', params.permissions)
-        console.log('App info:', params.appInfo)
-        console.log('Gateway:', params.gateway)
-
-        await window.arweaveWallet.connect(params.permissions, params.appInfo, params.gateway)
-
-        // Update wallet address after connection
-        walletAddress = await window.arweaveWallet.getActiveAddress()
-        console.log('Wallet connected, address:', walletAddress)
-
-        // Update UI if not already connected
-        if (!connected) {
-          document.getElementById('walletInfo').style.display = 'block'
-          document.getElementById('address').textContent = walletAddress
-          document.getElementById('connectBtn').style.display = 'none'
-          connected = true
-          console.log('Wallet connected, polling already active')
-        }
-
-        await sendResponse(request.id, null)
-
-        statusDiv.className = 'status connected'
-        statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-        log(`Wallet connected programmatically: ${walletAddress}`, 'success')
-      }
-      catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        console.error('Connect error:', err)
-        log(`Connection failed: ${errorMsg}`, 'error')
-        throw new Error(`Failed to connect: ${errorMsg}`)
-      }
-    }
-    else if (request.type === 'address') {
-      log('Providing wallet address...')
-      await sendResponse(request.id, walletAddress)
-      log('Address sent successfully', 'success')
-    }
-    else if (request.type === 'disconnect') {
-      log('Disconnecting wallet...')
-      await window.arweaveWallet.disconnect()
-      await sendResponse(request.id, null)
-      log('Wallet disconnected', 'success')
-    }
-    else if (request.type === 'getAllAddresses') {
-      log('Getting all addresses...')
-      const addresses = await window.arweaveWallet.getAllAddresses()
-      await sendResponse(request.id, addresses)
-      log('All addresses retrieved', 'success')
-    }
-    else if (request.type === 'getWalletNames') {
-      log('Getting wallet names...')
-      const names = await window.arweaveWallet.getWalletNames()
-      await sendResponse(request.id, names)
-      log('Wallet names retrieved', 'success')
-    }
-    else if (request.type === 'getPermissions') {
-      log('Getting permissions...')
-      const permissions = await window.arweaveWallet.getPermissions()
-      await sendResponse(request.id, permissions)
-      log('Permissions retrieved', 'success')
-    }
-    else if (request.type === 'getArweaveConfig') {
-      log('Getting Arweave config...')
-      const config = await window.arweaveWallet.getArweaveConfig()
-      await sendResponse(request.id, config)
-      log('Config retrieved', 'success')
-    }
-    else if (request.type === 'getPublicKey') {
-      log('Getting public key...')
-      const publicKey = await window.arweaveWallet.getActivePublicKey()
-      await sendResponse(request.id, publicKey)
-      log('Public key retrieved', 'success')
-    }
-    else if (request.type === 'signature') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '✍️ Please sign the data in your wallet...'
-      log('Signature request, please check your wallet...')
-
-      // Convert base64 data back to Uint8Array
-      const binaryString = atob(params.data)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      const signature = await window.arweaveWallet.signature(bytes, params.algorithm)
-
-      // Convert signature to base64
-      const signatureArray = new Uint8Array(signature)
-      let binary = ''
-      for (let i = 0; i < signatureArray.length; i++) {
-        binary += String.fromCharCode(signatureArray[i])
-      }
-      const signatureBase64 = btoa(binary)
-
-      await sendResponse(request.id, signatureBase64)
-      statusDiv.className = 'status connected'
-      statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-      log('Signature created successfully!', 'success')
-    }
-    else if (request.type === 'sign') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '✍️ Please sign the transaction in your wallet...'
-      log('Transaction signing request, please check your wallet...')
-
-      try {
-        params.transaction.data = arweave.utils.b64UrlToBuffer(params.transaction.data)
-
-        // Reconstruct the transaction object from JSON
-        const transaction = await arweave.createTransaction(params.transaction)
-
-        const signedTx = await window.arweaveWallet.sign(transaction, params.options)
-        console.log('Signed transaction:', signedTx)
-
-        await sendResponse(request.id, signedTx.toJSON())
-
-        statusDiv.className = 'status connected'
-        statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-        log('Transaction signed successfully!', 'success')
-      }
-      catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        log(`Failed to sign transaction: ${errorMsg}`, 'error')
-        throw new Error(`Failed to sign transaction: ${errorMsg}`)
-      }
-    }
-    else if (request.type === 'dispatch') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '✍️ Please approve the transaction in your wallet...'
-      log('Transaction dispatch request, please check your wallet...')
-
-      try {
-        params.transaction.data = arweave.utils.b64UrlToBuffer(params.transaction.data)
-        console.log('Transaction:', params.transaction)
-        const transaction = await arweave.createTransaction(params.transaction)
-        const result = await window.arweaveWallet.dispatch(transaction, params.options)
-        await sendResponse(request.id, result)
-
-        statusDiv.className = 'status connected'
-        statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-        log('Transaction dispatched successfully!', 'success')
-      }
-      catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        log(`Failed to dispatch transaction: ${errorMsg}`, 'error')
-        throw new Error(`Failed to dispatch transaction: ${errorMsg}`)
-      }
-    }
-    else if (request.type === 'encrypt') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '🔒 Encrypting data...'
-      log('Encryption request...')
-
-      let dataToEncrypt = params.data
-      // Check if data is base64 encoded (binary)
-      try {
-        const binaryString = atob(params.data)
-        const bytes = new Uint8Array(binaryString.length)
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i)
-        }
-        dataToEncrypt = bytes
-      }
-      catch (e) {
-        // Keep as string if not base64
-      }
-
-      const encrypted = await window.arweaveWallet.encrypt(dataToEncrypt, params.options)
-
-      // Convert to base64
-      const encryptedArray = new Uint8Array(encrypted)
-      let binary = ''
-      for (let i = 0; i < encryptedArray.length; i++) {
-        binary += String.fromCharCode(encryptedArray[i])
-      }
-      const encryptedBase64 = btoa(binary)
-
-      await sendResponse(request.id, encryptedBase64)
-      statusDiv.className = 'status connected'
-      statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-      log('Data encrypted successfully!', 'success')
-    }
-    else if (request.type === 'decrypt') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '🔓 Decrypting data...'
-      log('Decryption request...')
-
-      // Convert base64 to Uint8Array
-      const binaryString = atob(params.data)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      const decrypted = await window.arweaveWallet.decrypt(bytes, params.options)
-
-      // Convert to base64
-      const decryptedArray = new Uint8Array(decrypted)
-      let binary = ''
-      for (let i = 0; i < decryptedArray.length; i++) {
-        binary += String.fromCharCode(decryptedArray[i])
-      }
-      const decryptedBase64 = btoa(binary)
-
-      await sendResponse(request.id, decryptedBase64)
-      statusDiv.className = 'status connected'
-      statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-      log('Data decrypted successfully!', 'success')
-    }
-    else if (request.type === 'signDataItem') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '✍️ Please sign the data item in your wallet...'
-      log('Data item signing request, please check your wallet...')
-
-      // Convert base64 data to Uint8Array if needed
-      let dataToSign = params.data
-      if (typeof dataToSign === 'string') {
-        try {
-          const binaryString = atob(dataToSign)
-          const bytes = new Uint8Array(binaryString.length)
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i)
-          }
-          dataToSign = bytes
-        }
-        catch (e) {
-          // If it's not base64, keep as string
-        }
-      }
-
-      // Sign data item with wallet (with optional signature options)
-      const signedDataItem = await window.arweaveWallet.signDataItem({
-        data: dataToSign,
-        tags: params.tags || [],
-        target: params.target,
-        anchor: params.anchor,
-      }, params.options)
-
-      // Convert ArrayBuffer to base64 for transfer
-      const signedArray = new Uint8Array(signedDataItem)
-      let binary = ''
-      for (let i = 0; i < signedArray.length; i++) {
-        binary += String.fromCharCode(signedArray[i])
-      }
-      const signedBase64 = btoa(binary)
-
-      await sendResponse(request.id, {
-        signedDataItem: signedBase64,
-      })
-
-      statusDiv.className = 'status connected'
-      statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-      log('Data item signed successfully!', 'success')
-    }
-    else if (request.type === 'privateHash') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '🔐 Creating private hash...'
-      log('Private hash request...')
-
-      // Convert base64 data back to Uint8Array
-      const binaryString = atob(params.data)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      console.log({ bytes, options: params.options })
-
-      const hash = await window.arweaveWallet.privateHash(bytes, params.options)
-
-      // Convert hash to base64
-      const hashArray = new Uint8Array(hash)
-      let binary = ''
-      for (let i = 0; i < hashArray.length; i++) {
-        binary += String.fromCharCode(hashArray[i])
-      }
-      const hashBase64 = btoa(binary)
-
-      await sendResponse(request.id, hashBase64)
-      statusDiv.className = 'status connected'
-      statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-      log('Private hash created successfully!', 'success')
-    }
-    else if (request.type === 'addToken') {
-      log('Adding token to wallet...')
-      await window.arweaveWallet.addToken(params.id, params.type, params.gateway)
-      await sendResponse(request.id, null)
-      log('Token added successfully!', 'success')
-    }
-    else if (request.type === 'isTokenAdded') {
-      log('Checking if token is added...')
-      const isAdded = await window.arweaveWallet.isTokenAdded(params.id)
-      await sendResponse(request.id, isAdded)
-      log(`Token ${isAdded ? 'is' : 'is not'} added`, 'success')
-    }
-    else if (request.type === 'signMessage') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '✍️ Please sign the message in your wallet...'
-      log('Message signing request, please check your wallet...')
-
-      // Convert message data
-      const binaryString = atob(params.data)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      const signature = await window.arweaveWallet.signMessage(bytes, params.options)
-
-      // Convert signature to base64
-      const signatureArray = new Uint8Array(signature)
-      let binary = ''
-      for (let i = 0; i < signatureArray.length; i++) {
-        binary += String.fromCharCode(signatureArray[i])
-      }
-      const signatureBase64 = btoa(binary)
-
-      await sendResponse(request.id, signatureBase64)
-      statusDiv.className = 'status connected'
-      statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-      log('Message signed successfully!', 'success')
-    }
-    else if (request.type === 'verifyMessage') {
-      log('Verifying message signature...')
-
-      // Convert message data
-      const binaryString = atob(params.data)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      // Convert signature from base64
-      const sigBinaryString = atob(params.signature)
-      const sigBytes = new Uint8Array(sigBinaryString.length)
-      for (let i = 0; i < sigBinaryString.length; i++) {
-        sigBytes[i] = sigBinaryString.charCodeAt(i)
-      }
-
-      const isValid = await window.arweaveWallet.verifyMessage(
-        bytes,
-        sigBytes,
-        params.publicKey,
-        params.options,
-      )
-
-      await sendResponse(request.id, isValid)
-      log(`Message verification: ${isValid ? 'valid' : 'invalid'}`, 'success')
-    }
-    else if (request.type === 'batchSignDataItem') {
-      statusDiv.className = 'status signing'
-      statusDiv.innerHTML = '✍️ Please sign multiple data items in your wallet...'
-      log(`Batch signing request for ${params.dataItems.length} items...`)
-
-      // Convert data items
-      const items = params.dataItems.map((item) => {
-        let data = item.data
-        if (typeof data === 'string') {
-          try {
-            const binaryString = atob(data)
-            const bytes = new Uint8Array(binaryString.length)
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i)
-            }
-            data = bytes
-          }
-          catch (e) {
-            // Keep as string if not base64
-          }
-        }
-        return {
-          data,
-          tags: item.tags || [],
-          target: item.target,
-          anchor: item.anchor,
-        }
-      })
-
-      const signedItems = await window.arweaveWallet.batchSignDataItem(items, params.options)
-
-      // Convert signed items to base64
-      const results = signedItems.map((signedItem) => {
-        const signedArray = new Uint8Array(signedItem)
-        let binary = ''
-        for (let i = 0; i < signedArray.length; i++) {
-          binary += String.fromCharCode(signedArray[i])
-        }
-        return {
-          signedDataItem: btoa(binary),
-        }
-      })
-
-      await sendResponse(request.id, results)
-      statusDiv.className = 'status connected'
-      statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-      log(`Batch signed ${results.length} items successfully!`, 'success')
-    }
-    else {
-      log(`Unknown request type: ${request.type}`, 'error')
-      await sendResponse(request.id, null, `Unknown request type: ${request.type}`)
-    }
+function setTheme(theme, logChange = true) {
+  document.documentElement.setAttribute('data-theme', theme)
+  if (dom.themeIcon) {
+    dom.themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙'
   }
-  catch (error) {
-    statusDiv.className = 'status error'
-    statusDiv.innerHTML = `❌ Operation failed: ${error.message}`
-    log(`Error: ${error.message}`, 'error')
-    await sendResponse(request.id, null, error.message)
-
-    // Reset status after error
-    setTimeout(() => {
-      if (connected) {
-        statusDiv.className = 'status connected'
-        statusDiv.innerHTML = '✅ Wallet connected - Ready for signing'
-      }
-    }, 3000)
+  localStorage.setItem('theme', theme)
+  if (logChange) {
+    log(`Switched to ${theme} mode`)
   }
+}
+
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light'
+  const newTheme = currentTheme === 'light' ? 'dark' : 'light'
+  
+  // Mark that user has manually selected a theme
+  localStorage.setItem('theme-manual', 'true')
+  setTheme(newTheme)
+}
+
+// ==================== Request Queue Management ====================
+function addToQueue(id, type, status = 'pending') {
+  requestQueue.set(id, { type, status, timestamp: Date.now() })
+  updateQueueUI()
+}
+
+function updateQueueStatus(id, status) {
+  const item = requestQueue.get(id)
+  if (item) {
+    item.status = status
+    updateQueueUI()
+  }
+}
+
+function removeFromQueue(id) {
+  requestQueue.delete(id)
+  updateQueueUI()
+}
+
+function updateQueueUI() {
+  if (!dom.queueContainer || !dom.queueList) return
+
+  if (requestQueue.size === 0) {
+    dom.queueContainer.classList.remove('active')
+    return
+  }
+
+  dom.queueContainer.classList.add('active')
+
+  const statusOrder = { processing: 0, pending: 1, completed: 2 }
+  const sortedQueue = Array.from(requestQueue.entries()).sort(
+    (a, b) => (statusOrder[a[1].status] || 3) - (statusOrder[b[1].status] || 3)
+  )
+
+  dom.queueList.innerHTML = sortedQueue.map(([id, item]) => `
+    <div class="queue-item">
+      <span class="queue-icon">${OPERATION_ICONS[item.type] || '📦'}</span>
+      <span class="queue-text">${OPERATION_LABELS[item.type] || item.type}</span>
+      <span class="queue-status ${item.status}">${item.status}</span>
+    </div>
+  `).join('')
+}
+
+// ==================== Logging ====================
+function log(message, type = 'info') {
+  if (!dom.log) return
+
+  const entry = document.createElement('div')
+  entry.className = `log-entry ${type}`
+  entry.textContent = `${new Date().toLocaleTimeString()} - ${message}`
+  dom.log.appendChild(entry)
+  dom.log.scrollTop = dom.log.scrollHeight
+
+  // Keep log at reasonable size
+  while (dom.log.children.length > MAX_LOG_ENTRIES) {
+    dom.log.removeChild(dom.log.firstChild)
+  }
+}
+
+// ==================== Utility Functions ====================
+function base64ToUint8Array(base64) {
+  const binaryString = atob(base64)
+  const bytes = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  return bytes
+}
+
+function uint8ArrayToBase64(uint8Array) {
+  let binary = ''
+  for (let i = 0; i < uint8Array.length; i++) {
+    binary += String.fromCharCode(uint8Array[i])
+  }
+  return btoa(binary)
 }
 
 async function sendResponse(id, result, error = null) {
@@ -551,44 +276,335 @@ async function sendResponse(id, result, error = null) {
   })
 }
 
-// Auto-connect if wallet is available
-window.addEventListener('load', () => {
-  // Start polling immediately so we can receive programmatic connect requests
-  // Set a minimal connected state to enable polling
-  startPollingForRequests()
+// ==================== Wallet Connection ====================
+async function connectWallet() {
+  try {
+    if (!window.arweaveWallet) {
+      setState(States.ERROR, 'No Arweave wallet found. Please install Wander.')
+      log('No wallet extension found', 'error')
+      return
+    }
 
-  // Wait a bit for wallet extensions to inject
-  setTimeout(() => {
-    if (window.arweaveWallet) {
-      // Check if already connected
-      window.arweaveWallet.getActiveAddress()
-        .then((address) => {
-          if (address) {
-            log('Wallet already connected, attempting auto-connect...')
-            connectWallet()
-          }
-          else {
-            log('Ready to connect wallet (click button or wait for programmatic connect)')
-          }
-        })
-        .catch(() => {
-          // Not connected yet
-          log('Ready to connect wallet (click button or wait for programmatic connect)')
-        })
+    setState(States.CONNECTING, 'Requesting wallet connection...')
+    log('Requesting wallet connection...')
+
+    await window.arweaveWallet.connect(DEFAULT_PERMISSIONS)
+    walletAddress = await window.arweaveWallet.getActiveAddress()
+
+    setState(States.CONNECTED, '✅ Wallet connected successfully!')
+    dom.walletInfo.style.display = 'block'
+    dom.address.textContent = walletAddress
+    dom.connectBtn.style.display = 'none'
+
+    log(`Connected: ${walletAddress}`, 'success')
+  }
+  catch (error) {
+    const errorMessage = error?.message || String(error) || 'User rejected wallet connection'
+    setState(States.ERROR, `Failed to connect: ${errorMessage}`)
+    log(`Connection failed: ${errorMessage}`, 'error')
+    dom.connectBtn.style.display = 'block'
+  }
+}
+
+// ==================== Request Handlers ====================
+const requestHandlers = {
+  async connect(params, requestId) {
+    setState(States.SIGNING, '✍️ Please approve the connection in your wallet...')
+    log('Programmatic connection request...')
+
+    await window.arweaveWallet.connect(params.permissions, params.appInfo, params.gateway)
+    walletAddress = await window.arweaveWallet.getActiveAddress()
+
+    if (currentState !== States.CONNECTED) {
+      dom.walletInfo.style.display = 'block'
+      dom.address.textContent = walletAddress
+      dom.connectBtn.style.display = 'none'
+    }
+
+    await sendResponse(requestId, null)
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log(`Wallet connected programmatically: ${walletAddress}`, 'success')
+  },
+
+  async address(params, requestId) {
+    log('Providing wallet address...')
+    await sendResponse(requestId, walletAddress)
+    log('Address sent successfully', 'success')
+  },
+
+  async disconnect(params, requestId) {
+    log('Disconnecting wallet...')
+    await window.arweaveWallet.disconnect()
+    await sendResponse(requestId, null)
+    log('Wallet disconnected', 'success')
+  },
+
+  async getAllAddresses(params, requestId) {
+    log('Getting all addresses...')
+    const addresses = await window.arweaveWallet.getAllAddresses()
+    await sendResponse(requestId, addresses)
+    log('All addresses retrieved', 'success')
+  },
+
+  async getWalletNames(params, requestId) {
+    log('Getting wallet names...')
+    const names = await window.arweaveWallet.getWalletNames()
+    await sendResponse(requestId, names)
+    log('Wallet names retrieved', 'success')
+  },
+
+  async getPermissions(params, requestId) {
+    log('Getting permissions...')
+    const permissions = await window.arweaveWallet.getPermissions()
+    await sendResponse(requestId, permissions)
+    log('Permissions retrieved', 'success')
+  },
+
+  async getArweaveConfig(params, requestId) {
+    log('Getting Arweave config...')
+    const config = await window.arweaveWallet.getArweaveConfig()
+    await sendResponse(requestId, config)
+    log('Config retrieved', 'success')
+  },
+
+  async getPublicKey(params, requestId) {
+    log('Getting public key...')
+    const publicKey = await window.arweaveWallet.getActivePublicKey()
+    await sendResponse(requestId, publicKey)
+    log('Public key retrieved', 'success')
+  },
+
+  async signature(params, requestId) {
+    setState(States.SIGNING, '✍️ Please sign the data in your wallet...')
+    log('Signature request, please check your wallet...')
+
+    const bytes = base64ToUint8Array(params.data)
+    const signature = await window.arweaveWallet.signature(bytes, params.algorithm)
+    const signatureBase64 = uint8ArrayToBase64(new Uint8Array(signature))
+
+    await sendResponse(requestId, signatureBase64)
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log('Signature created successfully!', 'success')
+  },
+
+  async sign(params, requestId) {
+    setState(States.SIGNING, '✍️ Please sign the transaction in your wallet...')
+    log('Transaction signing request, please check your wallet...')
+
+    params.transaction.data = arweave.utils.b64UrlToBuffer(params.transaction.data)
+    const transaction = await arweave.createTransaction(params.transaction)
+    const signedTx = await window.arweaveWallet.sign(transaction, params.options)
+
+    await sendResponse(requestId, signedTx.toJSON())
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log('Transaction signed successfully!', 'success')
+  },
+
+  async dispatch(params, requestId) {
+    setState(States.SIGNING, '✍️ Please approve the transaction in your wallet...')
+    log('Transaction dispatch request, please check your wallet...')
+
+    params.transaction.data = arweave.utils.b64UrlToBuffer(params.transaction.data)
+    const transaction = await arweave.createTransaction(params.transaction)
+    const result = await window.arweaveWallet.dispatch(transaction, params.options)
+
+    await sendResponse(requestId, result)
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log('Transaction dispatched successfully!', 'success')
+  },
+
+  async encrypt(params, requestId) {
+    setState(States.SIGNING, '🔒 Encrypting data...')
+    log('Encryption request...')
+
+    let dataToEncrypt = params.data
+    try {
+      dataToEncrypt = base64ToUint8Array(params.data)
+    }
+    catch (e) {
+      // Keep as string if not base64
+    }
+
+    const encrypted = await window.arweaveWallet.encrypt(dataToEncrypt, params.options)
+    const encryptedBase64 = uint8ArrayToBase64(new Uint8Array(encrypted))
+
+    await sendResponse(requestId, encryptedBase64)
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log('Data encrypted successfully!', 'success')
+  },
+
+  async decrypt(params, requestId) {
+    setState(States.SIGNING, '🔓 Decrypting data...')
+    log('Decryption request...')
+
+    const bytes = base64ToUint8Array(params.data)
+    const decrypted = await window.arweaveWallet.decrypt(bytes, params.options)
+    const decryptedBase64 = uint8ArrayToBase64(new Uint8Array(decrypted))
+
+    await sendResponse(requestId, decryptedBase64)
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log('Data decrypted successfully!', 'success')
+  },
+
+  async signDataItem(params, requestId) {
+    setState(States.SIGNING, '✍️ Please sign the data item in your wallet...')
+    log('Data item signing request, please check your wallet...')
+
+    let dataToSign = params.data
+    if (typeof dataToSign === 'string') {
+      try {
+        dataToSign = base64ToUint8Array(dataToSign)
+      }
+      catch (e) {
+        // Keep as string if not base64
+      }
+    }
+
+    const signedDataItem = await window.arweaveWallet.signDataItem({
+      data: dataToSign,
+      tags: params.tags || [],
+      target: params.target,
+      anchor: params.anchor,
+    }, params.options)
+
+    const signedBase64 = uint8ArrayToBase64(new Uint8Array(signedDataItem))
+
+    await sendResponse(requestId, { signedDataItem: signedBase64 })
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log('Data item signed successfully!', 'success')
+  },
+
+  async privateHash(params, requestId) {
+    setState(States.SIGNING, '🔐 Creating private hash...')
+    log('Private hash request...')
+
+    const bytes = base64ToUint8Array(params.data)
+    const hash = await window.arweaveWallet.privateHash(bytes, params.options)
+    const hashBase64 = uint8ArrayToBase64(new Uint8Array(hash))
+
+    await sendResponse(requestId, hashBase64)
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log('Private hash created successfully!', 'success')
+  },
+
+  async addToken(params, requestId) {
+    log('Adding token to wallet...')
+    await window.arweaveWallet.addToken(params.id, params.type, params.gateway)
+    await sendResponse(requestId, null)
+    log('Token added successfully!', 'success')
+  },
+
+  async isTokenAdded(params, requestId) {
+    log('Checking if token is added...')
+    const isAdded = await window.arweaveWallet.isTokenAdded(params.id)
+    await sendResponse(requestId, isAdded)
+    log(`Token ${isAdded ? 'is' : 'is not'} added`, 'success')
+  },
+
+  async signMessage(params, requestId) {
+    setState(States.SIGNING, '✍️ Please sign the message in your wallet...')
+    log('Message signing request, please check your wallet...')
+
+    const bytes = base64ToUint8Array(params.data)
+    const signature = await window.arweaveWallet.signMessage(bytes, params.options)
+    const signatureBase64 = uint8ArrayToBase64(new Uint8Array(signature))
+
+    await sendResponse(requestId, signatureBase64)
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log('Message signed successfully!', 'success')
+  },
+
+  async verifyMessage(params, requestId) {
+    log('Verifying message signature...')
+
+    const bytes = base64ToUint8Array(params.data)
+    const sigBytes = base64ToUint8Array(params.signature)
+    const isValid = await window.arweaveWallet.verifyMessage(
+      bytes,
+      sigBytes,
+      params.publicKey,
+      params.options,
+    )
+
+    await sendResponse(requestId, isValid)
+    log(`Message verification: ${isValid ? 'valid' : 'invalid'}`, 'success')
+  },
+
+  async batchSignDataItem(params, requestId) {
+    setState(States.SIGNING, '✍️ Please sign multiple data items in your wallet...')
+    log(`Batch signing request for ${params.dataItems.length} items...`)
+
+    const items = params.dataItems.map((item) => {
+      let data = item.data
+      if (typeof data === 'string') {
+        try {
+          data = base64ToUint8Array(data)
+        }
+        catch (e) {
+          // Keep as string if not base64
+        }
+      }
+      return {
+        data,
+        tags: item.tags || [],
+        target: item.target,
+        anchor: item.anchor,
+      }
+    })
+
+    const signedItems = await window.arweaveWallet.batchSignDataItem(items, params.options)
+    const results = signedItems.map(signedItem => ({
+      signedDataItem: uint8ArrayToBase64(new Uint8Array(signedItem)),
+    }))
+
+    await sendResponse(requestId, results)
+    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+    log(`Batch signed ${results.length} items successfully!`, 'success')
+  },
+}
+
+// ==================== Request Handling ====================
+async function handleRequest(request) {
+  try {
+    addToQueue(request.id, request.type, 'processing')
+
+    const dataResponse = await fetch('/get-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: request.id }),
+    })
+    const requestData = await dataResponse.json()
+    const params = requestData.params || {}
+
+    const handler = requestHandlers[request.type]
+    if (handler) {
+      await handler(params, request.id)
     }
     else {
-      document.getElementById('status').className = 'status error'
-      document.getElementById('status').innerHTML = '❌ No Arweave wallet extension detected<br><small>Please install Wander and refresh this page</small>'
-      log('Please install Wander extension', 'error')
-      console.error('window.arweaveWallet is not available. Please install a compatible wallet extension.')
+      log(`Unknown request type: ${request.type}`, 'error')
+      await sendResponse(request.id, null, `Unknown request type: ${request.type}`)
     }
-  }, 500) // Give wallet extension time to inject
-})
 
-// Start polling for requests (independent of wallet connection state)
+    updateQueueStatus(request.id, 'completed')
+    setTimeout(() => removeFromQueue(request.id), QUEUE_CLEANUP_DELAY)
+  }
+  catch (error) {
+    setState(States.ERROR, `Operation failed: ${error.message}`)
+    log(`Error: ${error.message}`, 'error')
+    await sendResponse(request.id, null, error.message)
+    removeFromQueue(request.id)
+
+    setTimeout(() => {
+      if (currentState === States.ERROR) {
+        setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+      }
+    }, ERROR_RESET_DELAY)
+  }
+}
+
+// ==================== Polling ====================
 async function startPollingForRequests() {
-  if (polling)
-    return
+  if (polling) return
   polling = true
   log('Started listening for requests from CLI...')
 
@@ -601,31 +617,56 @@ async function startPollingForRequests() {
 
       const request = await response.json()
 
-      // Check if the process is complete
       if (request.completed) {
         if (request.status === 'success') {
           log('✅ Process successful!', 'success')
-          document.getElementById('status').className = 'status connected'
-          document.getElementById('status').innerHTML = '✅ Process complete! You can close this window.'
+          setState(States.COMPLETE, '✅ Process complete! You can close this window.')
         }
         else {
           log('❌ Process failed!', 'error')
-          document.getElementById('status').className = 'status error'
-          document.getElementById('status').innerHTML = '❌ Process failed. Check your CLI for details.'
+          setState(States.ERROR, 'Process failed. Check your CLI for details.')
         }
-        break // Stop polling
+        break
       }
 
       if (request.id && request.type) {
         await handleRequest(request)
       }
 
-      // Small delay before next poll
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise(resolve => setTimeout(resolve, POLL_DELAY))
     }
     catch (error) {
       console.error('Polling error:', error)
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, POLL_ERROR_DELAY))
     }
   }
 }
+
+// ==================== Initialization ====================
+window.addEventListener('load', () => {
+  cacheDOMElements()
+  initTheme()
+  startPollingForRequests()
+
+  setTimeout(() => {
+    if (window.arweaveWallet) {
+      window.arweaveWallet.getActiveAddress()
+        .then((address) => {
+          if (address) {
+            log('Wallet already connected, attempting auto-connect...')
+            connectWallet()
+          }
+          else {
+            log('Ready to connect wallet (click button or wait for programmatic connect)')
+          }
+        })
+        .catch(() => {
+          log('Ready to connect wallet (click button or wait for programmatic connect)')
+        })
+    }
+    else {
+      setState(States.ERROR, 'No Arweave wallet extension detected<br><small>Please install Wander and refresh this page</small>')
+      log('Please install Wander extension', 'error')
+    }
+  }, WALLET_INJECTION_DELAY)
+})

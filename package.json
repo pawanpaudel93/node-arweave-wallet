@@ -40,7 +40,8 @@
   },
   "dependencies": {
     "@dha-team/arbundles": "catalog:",
-    "arweave": "catalog:"
+    "arweave": "catalog:",
+    "nanoid": "catalog:"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:cli",

@@ -9,11 +9,22 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { DataItem as ArBundlesDataItem } from '@dha-team/arbundles/node'
 import Arweave from 'arweave'
+import { nanoid } from 'nanoid'
 
+// ==================== Type Definitions ====================
 interface SigningResponse {
   id: string
   result?: any
   error?: string
+}
+
+interface PendingRequest {
+  resolve: (value: any) => void
+  reject: (error: Error) => void
+  data?: {
+    type: string
+    params: any
+  }
 }
 
 export type PermissionType
@@ -75,69 +86,82 @@ export interface EcdsaParams extends Algorithm {
   hash: AlgorithmIdentifier
 }
 
-const arweave = new Arweave({
-  host: 'arweave.net',
-  port: 443,
-  protocol: 'https',
-})
-
 export interface NodeArweaveWalletConfig {
   port?: number // Port to listen on (default: 3737, use 0 for random)
 }
 
+// ==================== Constants ====================
+const DEFAULT_PORT = 3737
+const DEFAULT_HOST = '127.0.0.1'
+const REQUEST_TIMEOUT = 120000 // 120 seconds
+const ADDRESS_TIMEOUT = 60000 // 60 seconds
+const BROWSER_TIMEOUT = 30000 // 30 seconds
+const HEARTBEAT_CHECK_INTERVAL = 10000 // 10 seconds - check infrequently to reduce overhead
+const HEARTBEAT_TIMEOUT = 300000 // 5 minutes - very generous timeout for user interactions
+const POLL_WAIT_TIME = 1000 // 1 second
+const SHUTDOWN_DELAY = 500 // 500ms
+const BROWSER_READY_DELAY = 500 // 500ms
+const POLLING_INTERVAL = 100 // 100ms
+
+const ARWEAVE_CONFIG = {
+  host: 'arweave.net',
+  port: 443,
+  protocol: 'https' as const,
+}
+
+const arweave = new Arweave(ARWEAVE_CONFIG)
+
+// ==================== Helper Functions ====================
+function bufferToBase64(buffer: Uint8Array | ArrayBuffer): string {
+  const uint8Array = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer
+  return Buffer.from(uint8Array).toString('base64')
+}
+
+function base64ToBuffer(base64: string): Uint8Array {
+  return Buffer.from(base64, 'base64')
+}
+
+// ==================== NodeArweaveWallet Class ====================
 export class NodeArweaveWallet {
   private server: http.Server | null = null
   private port: number = 0
-  private pendingRequests: Map<
-    string,
-    { resolve: (value: any) => void, reject: (error: Error) => void }
-  > = new Map()
+  private readonly config: NodeArweaveWalletConfig
+  private readonly pendingRequests = new Map<string, PendingRequest>()
+  private readonly connections = new Set<any>()
 
   private address: string | null = null
-  private connections: Set<any> = new Set()
-  private browserConnected: boolean = false
-  private lastHeartbeat: number = Date.now()
+  private browserConnected = false
+  private lastHeartbeat = Date.now()
   private heartbeatInterval: NodeJS.Timeout | null = null
   private complete = false
   private status: 'success' | 'failed' | null = null
-  private config: NodeArweaveWalletConfig
 
   constructor(config: NodeArweaveWalletConfig = {}) {
     this.config = {
-      port: config.port ?? 3737, // Default to port 3737
+      port: config.port ?? DEFAULT_PORT,
     }
   }
 
+  // ==================== Public API ====================
   /**
    * Start the local server and open the browser
    */
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.server = http.createServer((req, res) => {
-        this.handleRequest(req, res)
-      })
+      this.server = http.createServer((req, res) => this.handleRequest(req, res))
 
-      // Track connections for clean shutdown
       this.server.on('connection', (conn) => {
         this.connections.add(conn)
-        conn.on('close', () => {
-          this.connections.delete(conn)
-        })
+        conn.on('close', () => this.connections.delete(conn))
       })
 
-      // Listen on configured port (default: 3737, or 0 for random)
-      this.server.listen(this.config.port, '127.0.0.1', () => {
+      this.server.listen(this.config.port, DEFAULT_HOST, () => {
         const addr = this.server!.address() as any
         this.port = addr.port
-        console.log(
-          `\n🌐 Browser wallet signer started at http://localhost:${this.port}`,
-        )
+        console.log(`\n🌐 Browser wallet signer started at http://localhost:${this.port}`)
         console.log('📱 Opening browser for wallet connection...\n')
 
-        // Open browser
         this.openBrowser(`http://localhost:${this.port}`)
-
-        // Start heartbeat checker
         this.startHeartbeatChecker()
 
         resolve()
@@ -148,182 +172,31 @@ export class NodeArweaveWallet {
   }
 
   /**
-   * Start checking for browser heartbeat
+   * Connect wallet programmatically
    */
-  private startHeartbeatChecker(): void {
-    this.heartbeatInterval = setInterval(() => {
-      const timeSinceLastHeartbeat = Date.now() - this.lastHeartbeat
-
-      // If no heartbeat for 10 seconds and the browser was connected, it's disconnected
-      if (this.browserConnected && timeSinceLastHeartbeat > 10000) {
-        console.log('\n❌ Browser connection lost - tab may have been closed')
-        this.browserConnected = false
-
-        // Reject all pending requests
-        for (const [id, pending] of this.pendingRequests.entries()) {
-          pending.reject(new Error('Browser tab closed - signing cancelled'))
-          this.pendingRequests.delete(id)
-        }
-      }
-    }, 2000) // Check every 2 seconds
-  }
-
-  /**
-   * Handle HTTP requests from browser
-   */
-  private handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-    // Enable CORS
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-
-    if (req.method === 'OPTIONS') {
-      res.writeHead(200)
-      res.end()
-      return
-    }
-
-    if (req.method === 'GET' && req.url === '/') {
-      // Serve the HTML page
-      res.writeHead(200, { 'Content-Type': 'text/html' })
-      res.end(this.getSignerHTML())
-      return
-    }
-
-    if (req.method === 'POST' && req.url === '/poll') {
-      // Update heartbeat - browser is alive
-      this.lastHeartbeat = Date.now()
-      if (!this.browserConnected) {
-        this.browserConnected = true
-      }
-
-      // Check if the process is complete
-      if (this.complete) {
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            id: null,
-            completed: true,
-            status: this.status,
-          }),
-        )
-        return
-      }
-
-      // Long polling endpoint for getting signing requests
-      // Return pending request if any, otherwise wait
-      const request = Array.from(this.pendingRequests.entries())[0]
-      if (request) {
-        const [id, value] = request
-        // console.log(`📍 Found pending request: ${id}`);
-        const requestData = (value as any).data
-        if (requestData) {
-          // console.log(`📍 Request has data, type: ${requestData.type}`);
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(
-            JSON.stringify({
-              id,
-              type: requestData.type,
-              data: requestData,
-            }),
-          )
-        }
-        else {
-          // No data yet, wait
-          setTimeout(() => {
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ id: null }))
-          }, 1000)
-        }
-      }
-      else {
-        // No pending requests, hold connection briefly
-        setTimeout(() => {
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ id: null }))
-        }, 1000)
-      }
-      return
-    }
-
-    if (req.method === 'POST' && req.url === '/response') {
-      // Browser sends back signed data
-      let body = ''
-      req.on('data', (chunk) => {
-        body += chunk.toString()
-      })
-      req.on('end', () => {
-        try {
-          const response: SigningResponse = JSON.parse(body)
-          const pending = this.pendingRequests.get(response.id)
-          if (pending) {
-            if (response.error) {
-              pending.reject(new Error(response.error))
-            }
-            else {
-              pending.resolve(response.result)
-            }
-            this.pendingRequests.delete(response.id)
-          }
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ success: true }))
-        }
-        catch (error: any) {
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: error.message }))
-        }
-      })
-      return
-    }
-
-    if (req.method === 'POST' && req.url === '/get-request') {
-      // Get the next pending request
-      let body = ''
-      req.on('data', (chunk) => {
-        body += chunk.toString()
-      })
-      req.on('end', () => {
-        try {
-          const { id } = JSON.parse(body)
-          const pending = this.pendingRequests.get(id) as any
-          if (pending && pending.data) {
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify(pending.data))
-          }
-          else {
-            res.writeHead(404, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ error: 'Request not found' }))
-          }
-        }
-        catch (error: any) {
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: error.message }))
-        }
-      })
-      return
-    }
-
-    res.writeHead(404)
-    res.end('Not found')
+  async connect(
+    permissions: PermissionType[],
+    appInfo?: AppInfo,
+    gateway?: Gateway,
+  ): Promise<void> {
+    await this.waitForBrowserConnection()
+    return this.makeWalletRequest<void>('connect', { permissions, appInfo, gateway })
   }
 
   /**
    * Get active wallet address from browser
    */
   async getActiveAddress(): Promise<string> {
-    if (this.address) {
+    if (this.address)
       return this.address
-    }
 
-    const id = this.generateId()
+    const id = nanoid()
     return new Promise((resolve, reject) => {
-      // Set timeout
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id)
         reject(new Error('Timeout waiting for wallet address'))
-      }, 60000) // 60 second timeout
+      }, ADDRESS_TIMEOUT)
 
-      // Store request with both callbacks and data
       this.pendingRequests.set(id, {
         resolve: (value: string) => {
           clearTimeout(timeout)
@@ -334,275 +207,112 @@ export class NodeArweaveWallet {
           clearTimeout(timeout)
           reject(error)
         },
-        data: {
-          type: 'address',
-        },
-      } as any)
+        data: { type: 'address', params: {} },
+      })
     })
   }
 
-  /** Connect wallet programmatically */
-  async connect(
-    permissions: PermissionType[],
-    appInfo?: AppInfo,
-    gateway?: Gateway,
-  ): Promise<void> {
-    // Wait for browser to be ready before attempting connection
-    await this.waitForBrowserConnection()
-
-    return this.makeWalletRequest<void>('connect', {
-      permissions,
-      appInfo,
-      gateway,
-    })
-  }
-
-  /**
-   * Wait for browser page to be ready (receiving heartbeats)
-   * This doesn't require wallet connection, just that the browser page has loaded
-   */
-  private async waitForBrowserConnection(timeout = 30000): Promise<void> {
-    const startTime = Date.now()
-    // Wait for any heartbeat (even without wallet connected)
-    // The lastHeartbeat is updated when browser polls
-    const initialHeartbeat = this.lastHeartbeat
-
-    while (
-      this.lastHeartbeat === initialHeartbeat
-      && Date.now() - startTime < timeout
-    ) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
-
-    if (this.lastHeartbeat === initialHeartbeat) {
-      throw new Error(
-        'Browser page not responding. Please ensure the browser window is open.',
-      )
-    }
-
-    // Give it a moment to be fully ready
-    await new Promise(resolve => setTimeout(resolve, 500))
-  }
-
-  /**
-   * Disconnect wallet
-   */
   async disconnect(): Promise<void> {
     return this.makeWalletRequest<void>('disconnect', {})
   }
 
-  /**
-   * Get all wallet addresses
-   */
   async getAllAddresses(): Promise<string[]> {
     return this.makeWalletRequest<string[]>('getAllAddresses', {})
   }
 
-  /**
-   * Get wallet names
-   */
   async getWalletNames(): Promise<{ [address: string]: string }> {
-    return this.makeWalletRequest<{ [address: string]: string }>(
-      'getWalletNames',
-      {},
-    )
+    return this.makeWalletRequest<{ [address: string]: string }>('getWalletNames', {})
   }
 
-  /**
-   * Get permissions
-   */
   async getPermissions(): Promise<PermissionType[]> {
     return this.makeWalletRequest<PermissionType[]>('getPermissions', {})
   }
 
-  /**
-   * Get Arweave config
-   */
   async getArweaveConfig(): Promise<Gateway> {
     return this.makeWalletRequest<Gateway>('getArweaveConfig', {})
   }
 
-  /**
-   * Get public key
-   */
   async getActivePublicKey(): Promise<string> {
     return this.makeWalletRequest<string>('getPublicKey', {})
   }
 
-  /**
-   * Sign arbitrary data
-   */
   async signature(
     data: Uint8Array,
     algorithm: AlgorithmIdentifier | RsaPssParams | EcdsaParams,
   ): Promise<Uint8Array> {
-    const dataBase64 = Buffer.from(data).toString('base64')
-    const result = await this.makeWalletRequest<string>('signature', {
-      data: dataBase64,
-      algorithm,
-    })
-    return Buffer.from(result, 'base64')
+    const dataBase64 = bufferToBase64(data)
+    const result = await this.makeWalletRequest<string>('signature', { data: dataBase64, algorithm })
+    return base64ToBuffer(result)
   }
 
-  /**
-   * Sign a transaction
-   */
-  async sign(
-    transaction: Transaction,
-    options?: SignatureOptions,
-  ): Promise<Transaction> {
-    const data = await this.makeWalletRequest<any>('sign', {
-      transaction,
-      options,
-    })
-
+  async sign(transaction: Transaction, options?: SignatureOptions): Promise<Transaction> {
+    const data = await this.makeWalletRequest<any>('sign', { transaction, options })
     return arweave.transactions.fromRaw(data)
   }
 
-  /**
-   * Sign and dispatch a transaction
-   */
-  async dispatch(
-    transaction: Transaction,
-    options?: SignatureOptions,
-  ): Promise<DispatchResult> {
-    return this.makeWalletRequest<DispatchResult>('dispatch', {
-      transaction,
-      options,
-    })
+  async dispatch(transaction: Transaction, options?: SignatureOptions): Promise<DispatchResult> {
+    return this.makeWalletRequest<DispatchResult>('dispatch', { transaction, options })
   }
 
-  /**
-   * Encrypt data
-   */
   async encrypt(
     data: string | Uint8Array,
-    options: {
-      algorithm: string
-      hash: string
-      salt?: string
-    },
+    options: { algorithm: string, hash: string, salt?: string },
   ): Promise<Uint8Array> {
-    const dataToEncrypt
-      = typeof data === 'string' ? data : Buffer.from(data).toString('base64')
-    const result = await this.makeWalletRequest<string>('encrypt', {
-      data: dataToEncrypt,
-      options,
-    })
-    return Buffer.from(result, 'base64')
+    const dataToEncrypt = typeof data === 'string' ? data : bufferToBase64(data)
+    const result = await this.makeWalletRequest<string>('encrypt', { data: dataToEncrypt, options })
+    return base64ToBuffer(result)
   }
 
-  /**
-   * Decrypt data
-   */
   async decrypt(
     data: Uint8Array,
-    options: {
-      algorithm: string
-      hash: string
-      salt?: string
-    },
+    options: { algorithm: string, hash: string, salt?: string },
   ): Promise<Uint8Array> {
-    const dataBase64 = Buffer.from(data).toString('base64')
-    const result = await this.makeWalletRequest<string>('decrypt', {
-      data: dataBase64,
-      options,
-    })
-    return Buffer.from(result, 'base64')
+    const dataBase64 = bufferToBase64(data)
+    const result = await this.makeWalletRequest<string>('decrypt', { data: dataBase64, options })
+    return base64ToBuffer(result)
   }
 
-  /**
-   * Create a private hash (hash data with private key)
-   */
-  async privateHash(
-    data: Uint8Array | ArrayBuffer,
-    options?: SignMessageOptions,
-  ): Promise<Uint8Array> {
-    const buffer = data instanceof ArrayBuffer ? new Uint8Array(data) : data
-    const dataBase64 = Buffer.from(buffer).toString('base64')
-    const result = await this.makeWalletRequest<string>('privateHash', {
-      data: dataBase64,
-      options,
-    })
-    return Buffer.from(result, 'base64')
+  async privateHash(data: Uint8Array | ArrayBuffer, options?: SignMessageOptions): Promise<Uint8Array> {
+    const dataBase64 = bufferToBase64(data)
+    const result = await this.makeWalletRequest<string>('privateHash', { data: dataBase64, options })
+    return base64ToBuffer(result)
   }
 
-  /**
-   * Add a token to the wallet
-   */
-  async addToken(
-    id: string,
-    type?: TokenType,
-    gateway?: Gateway,
-  ): Promise<void> {
+  async addToken(id: string, type?: TokenType, gateway?: Gateway): Promise<void> {
     return this.makeWalletRequest<void>('addToken', { id, type, gateway })
   }
 
-  /**
-   * Check if a token is added to the wallet
-   */
   async isTokenAdded(id: string): Promise<boolean> {
     return this.makeWalletRequest<boolean>('isTokenAdded', { id })
   }
 
-  /**
-   * Sign a data item (direct API method)
-   * Returns the signed data item as a buffer
-   */
-  async signDataItem(
-    dataItem: DataItem,
-    options?: SignatureOptions,
-  ): Promise<Uint8Array> {
+  async signDataItem(dataItem: DataItem, options?: SignatureOptions): Promise<Uint8Array> {
     const params = {
-      data:
-        typeof dataItem.data === 'string'
-          ? dataItem.data
-          : Buffer.from(dataItem.data).toString('base64'),
+      data: typeof dataItem.data === 'string' ? dataItem.data : bufferToBase64(dataItem.data),
       tags: dataItem.tags || [],
       target: dataItem.target,
       anchor: dataItem.anchor,
       options,
     }
 
-    const result = await this.makeWalletRequest<{ signedDataItem: string }>(
-      'signDataItem',
-      params,
-    )
-
-    return Buffer.from(result.signedDataItem, 'base64')
+    const result = await this.makeWalletRequest<{ signedDataItem: string }>('signDataItem', params)
+    return base64ToBuffer(result.signedDataItem)
   }
 
-  /**
-   * Sign a message
-   */
-  async signMessage(
-    data: Uint8Array | ArrayBuffer,
-    options?: SignMessageOptions,
-  ): Promise<Uint8Array> {
-    const buffer = data instanceof ArrayBuffer ? new Uint8Array(data) : data
-    const dataBase64 = Buffer.from(buffer).toString('base64')
-    const result = await this.makeWalletRequest<string>('signMessage', {
-      data: dataBase64,
-      options,
-    })
-    return Buffer.from(result, 'base64')
+  async signMessage(data: Uint8Array | ArrayBuffer, options?: SignMessageOptions): Promise<Uint8Array> {
+    const dataBase64 = bufferToBase64(data)
+    const result = await this.makeWalletRequest<string>('signMessage', { data: dataBase64, options })
+    return base64ToBuffer(result)
   }
 
-  /**
-   * Verify a message signature
-   */
   async verifyMessage(
     data: Uint8Array | ArrayBuffer,
     signature: ArrayBuffer | string,
     publicKey?: string,
     options?: SignMessageOptions,
   ): Promise<boolean> {
-    const dataBuffer
-      = data instanceof ArrayBuffer ? new Uint8Array(data) : data
-    const dataBase64 = Buffer.from(dataBuffer).toString('base64')
-    const signatureBuffer
-      = signature instanceof ArrayBuffer ? new Uint8Array(signature) : signature
-    const signatureBase64 = Buffer.from(signatureBuffer).toString('base64')
+    const dataBase64 = bufferToBase64(data)
+    const signatureBase64 = typeof signature === 'string' ? signature : bufferToBase64(signature)
     return this.makeWalletRequest<boolean>('verifyMessage', {
       data: dataBase64,
       signature: signatureBase64,
@@ -611,55 +321,238 @@ export class NodeArweaveWallet {
     })
   }
 
-  /**
-   * Batch sign data items
-   */
   async batchSignDataItem(
     dataItems: DataItem[],
     options?: SignatureOptions,
   ): Promise<Array<{ id: string, raw: Uint8Array }>> {
-    // Convert data items to proper format
     const items = dataItems.map(item => ({
-      data:
-        typeof item.data === 'string'
-          ? item.data
-          : Buffer.from(item.data).toString('base64'),
+      data: typeof item.data === 'string' ? item.data : bufferToBase64(item.data),
       tags: item.tags || [],
       target: item.target,
       anchor: item.anchor,
     }))
 
-    const results = await this.makeWalletRequest<
-      Array<{ signedDataItem: string }>
-    >('batchSignDataItem', { dataItems: items, options })
+    const results = await this.makeWalletRequest<Array<{ signedDataItem: string }>>(
+      'batchSignDataItem',
+      { dataItems: items, options },
+    )
 
-    // Convert results back to proper format
     return Promise.all(
       results.map(async (result) => {
-        const signedBuffer = Buffer.from(result.signedDataItem, 'base64')
-        const dataItem = new ArBundlesDataItem(signedBuffer)
+        const signedBuffer = base64ToBuffer(result.signedDataItem)
+        const dataItem = new ArBundlesDataItem(Buffer.from(signedBuffer))
         const itemId = await dataItem.id
-        return {
-          id: itemId,
-          raw: new Uint8Array(signedBuffer),
-        }
+        return { id: itemId, raw: signedBuffer }
       }),
     )
   }
 
-  /**
-   * Generic method to make wallet requests
-   */
+  getDataItemSigner() {
+    return this.createDataItemSigner()
+  }
+
+  markComplete(status: 'success' | 'failed' = 'success'): void {
+    this.complete = true
+    this.status = status
+  }
+
+  async close(status: 'success' | 'failed' = 'success'): Promise<void> {
+    if (!this.server)
+      return
+
+    if (!this.complete) {
+      this.markComplete(status)
+    }
+
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
+    }
+
+    await new Promise(resolve => setTimeout(resolve, SHUTDOWN_DELAY))
+
+    for (const conn of this.connections) {
+      conn.destroy()
+    }
+    this.connections.clear()
+
+    if (this.server) {
+      this.server.close()
+      this.server = null
+    }
+  }
+
+  // ==================== Private Methods ====================
+  private startHeartbeatChecker(): void {
+    this.heartbeatInterval = setInterval(() => {
+      const timeSinceLastHeartbeat = Date.now() - this.lastHeartbeat
+
+      // Only check if we have pending requests - no need to check if nothing is pending
+      if (this.browserConnected && this.pendingRequests.size > 0 && timeSinceLastHeartbeat > HEARTBEAT_TIMEOUT) {
+        const timeoutMinutes = Math.floor(HEARTBEAT_TIMEOUT / 60000)
+        console.log(`\n⚠️  Browser connection timeout - no response for ${timeoutMinutes} minutes`)
+        console.log('💡 The browser tab may have been closed.')
+        console.log('💡 Tip: Keep the browser window open while signing transactions.')
+        this.browserConnected = false
+
+        // Reject pending requests with a helpful error message
+        for (const [id, pending] of this.pendingRequests.entries()) {
+          pending.reject(
+            new Error(
+              `Browser connection timeout after ${timeoutMinutes} minutes. `
+              + 'Please ensure the browser window stays open during signing operations.',
+            ),
+          )
+          this.pendingRequests.delete(id)
+        }
+      }
+    }, HEARTBEAT_CHECK_INTERVAL)
+  }
+
+  private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    this.setCORSHeaders(res)
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200)
+      res.end()
+      return
+    }
+
+    const handlers: Record<string, () => void> = {
+      'GET /': () => this.handleGetRoot(res),
+      'POST /poll': () => this.handlePoll(res),
+      'POST /response': () => this.handleResponse(req, res),
+      'POST /get-request': () => this.handleGetRequest(req, res),
+    }
+
+    const key = `${req.method} ${req.url}`
+    const handler = handlers[key]
+
+    if (handler) {
+      handler()
+    }
+    else {
+      res.writeHead(404)
+      res.end('Not found')
+    }
+  }
+
+  private setCORSHeaders(res: http.ServerResponse): void {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  }
+
+  private handleGetRoot(res: http.ServerResponse): void {
+    res.writeHead(200, { 'Content-Type': 'text/html' })
+    res.end(this.getSignerHTML())
+  }
+
+  private handlePoll(res: http.ServerResponse): void {
+    this.lastHeartbeat = Date.now()
+    if (!this.browserConnected) {
+      this.browserConnected = true
+    }
+
+    if (this.complete) {
+      this.sendJSON(res, 200, { id: null, completed: true, status: this.status })
+      return
+    }
+
+    const request = Array.from(this.pendingRequests.entries())[0]
+    if (request) {
+      const [id, value] = request
+      const requestData = value.data
+
+      if (requestData) {
+        this.sendJSON(res, 200, { id, type: requestData.type, data: requestData })
+      }
+      else {
+        setTimeout(() => this.sendJSON(res, 200, { id: null }), POLL_WAIT_TIME)
+      }
+    }
+    else {
+      setTimeout(() => this.sendJSON(res, 200, { id: null }), POLL_WAIT_TIME)
+    }
+  }
+
+  private handleResponse(req: http.IncomingMessage, res: http.ServerResponse): void {
+    this.readRequestBody(req, (body) => {
+      try {
+        const response: SigningResponse = JSON.parse(body)
+        const pending = this.pendingRequests.get(response.id)
+
+        if (pending) {
+          if (response.error) {
+            pending.reject(new Error(response.error))
+          }
+          else {
+            pending.resolve(response.result)
+          }
+          this.pendingRequests.delete(response.id)
+        }
+
+        this.sendJSON(res, 200, { success: true })
+      }
+      catch (error: any) {
+        this.sendJSON(res, 400, { error: error.message })
+      }
+    })
+  }
+
+  private handleGetRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    this.readRequestBody(req, (body) => {
+      try {
+        const { id } = JSON.parse(body)
+        const pending = this.pendingRequests.get(id)
+
+        if (pending?.data) {
+          this.sendJSON(res, 200, pending.data)
+        }
+        else {
+          this.sendJSON(res, 404, { error: 'Request not found' })
+        }
+      }
+      catch (error: any) {
+        this.sendJSON(res, 400, { error: error.message })
+      }
+    })
+  }
+
+  private readRequestBody(req: http.IncomingMessage, callback: (body: string) => void): void {
+    let body = ''
+    req.on('data', chunk => (body += chunk.toString()))
+    req.on('end', () => callback(body))
+  }
+
+  private sendJSON(res: http.ServerResponse, statusCode: number, data: any): void {
+    res.writeHead(statusCode, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(data))
+  }
+
+  private async waitForBrowserConnection(timeout = BROWSER_TIMEOUT): Promise<void> {
+    const startTime = Date.now()
+    const initialHeartbeat = this.lastHeartbeat
+
+    while (this.lastHeartbeat === initialHeartbeat && Date.now() - startTime < timeout) {
+      await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL))
+    }
+
+    if (this.lastHeartbeat === initialHeartbeat) {
+      throw new Error('Browser page not responding. Please ensure the browser window is open.')
+    }
+
+    await new Promise(resolve => setTimeout(resolve, BROWSER_READY_DELAY))
+  }
+
   private async makeWalletRequest<T>(type: string, params: any): Promise<T> {
-    const id = this.generateId()
+    const id = nanoid()
     return new Promise((resolve, reject) => {
-      // Set timeout
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id)
         reject(new Error(`Timeout waiting for ${type}`))
-      }, 120000) // 120 second timeout
+      }, REQUEST_TIMEOUT)
 
-      // Store request with both callbacks and data
       this.pendingRequests.set(id, {
         resolve: (value: T) => {
           clearTimeout(timeout)
@@ -669,26 +562,11 @@ export class NodeArweaveWallet {
           clearTimeout(timeout)
           reject(error)
         },
-        data: {
-          type,
-          params,
-        },
-      } as any)
+        data: { type, params },
+      })
     })
   }
 
-  /**
-   * Get the browser wallet signer (for direct use)
-   */
-  getDataItemSigner() {
-    return this.createDataItemSigner()
-  }
-
-  /**
-   * Create a DataItemSigner compatible with @permaweb/aoconnect
-   * This delegates to browser wallet's signDataItem method
-   * Uses arbundles DataItem class for proper ANS-104 handling
-   */
   private createDataItemSigner() {
     return async (create: any) => {
       const { data, tags, target, anchor } = await create({
@@ -708,74 +586,17 @@ export class NodeArweaveWallet {
       const rawBuffer = await dataItem.getRaw()
       const raw = new Uint8Array(rawBuffer)
 
-      return {
-        id: itemId,
-        raw,
-      }
+      return { id: itemId, raw }
     }
   }
 
-  /**
-   * Mark the process as complete and notify browser
-   */
-  markComplete(status: 'success' | 'failed' = 'success'): void {
-    this.complete = true
-    this.status = status
-  }
-
-  /**
-   * Cleanup and close server
-   */
-  async close(status: 'success' | 'failed' = 'success'): Promise<void> {
-    if (!this.server)
-      return
-
-    // Mark as complete if not already marked (defaults to success)
-    if (!this.complete) {
-      this.markComplete(status)
+  private openBrowser(url: string): void {
+    const commands: Record<string, string> = {
+      darwin: `open "${url}"`,
+      win32: `start "${url}"`,
     }
 
-    // Stop heartbeat checker
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval)
-      this.heartbeatInterval = null
-    }
-
-    // Give browser a moment to receive completion message, then force close
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    // Destroy all active connections
-    for (const conn of this.connections) {
-      conn.destroy()
-    }
-    this.connections.clear()
-
-    // Close server
-    if (this.server) {
-      this.server.close()
-      this.server = null
-    }
-  }
-
-  private generateId(): string {
-    return Math.random().toString(36).substring(2, 15)
-  }
-
-  private openBrowser(url: string) {
-    const platform = process.platform
-    let command: string
-
-    switch (platform) {
-      case 'darwin':
-        command = `open "${url}"`
-        break
-      case 'win32':
-        command = `start "${url}"`
-        break
-      default:
-        command = `xdg-open "${url}"`
-        break
-    }
+    const command = commands[process.platform] || `xdg-open "${url}"`
 
     exec(command, (error) => {
       if (error) {
@@ -786,7 +607,6 @@ export class NodeArweaveWallet {
   }
 
   private getSignerHTML(): string {
-    // Load HTML and JS from separate files for better maintainability
     const __filename = fileURLToPath(import.meta.url)
     const __dirname = dirname(__filename)
 
@@ -796,14 +616,11 @@ export class NodeArweaveWallet {
     const html = readFileSync(htmlPath, 'utf-8')
     const js = readFileSync(jsPath, 'utf-8')
 
-    // Replace the script src with inline script
-    return html.replace(
-      '<script src="signer.js"></script>',
-      `<script>${js}</script>`,
-    )
+    return html.replace('<script src="signer.js"></script>', `<script>${js}</script>`)
   }
 }
 
+// ==================== Exports ====================
 /**
  * Creates a DataItemSigner compatible with @permaweb/aoconnect
  * Similar to aoconnect's createDataItemSigner but uses browser wallet

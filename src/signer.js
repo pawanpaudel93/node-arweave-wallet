@@ -122,12 +122,12 @@ function setState(newState, message = '') {
   if (!dom.status) return
 
   const statusConfig = {
-    [States.DISCONNECTED]: ['connecting', message || 'Disconnected - Ready to connect'],
+    [States.DISCONNECTED]: ['error', message || '⚠️ Not connected - Click "Connect Wallet" to continue'],
     [States.CONNECTING]: ['connecting', `<div class="spinner"></div>${message || 'Connecting to wallet...'}`],
     [States.CONNECTED]: ['connected', message || '✅ Wallet connected - Ready for signing'],
     [States.SIGNING]: ['signing', message || '✍️ Processing request...'],
     [States.ERROR]: ['error', `❌ ${message || 'An error occurred'}`],
-    [States.COMPLETE]: ['connected', message || '✅ Process complete! You can close this window.'],
+    [States.COMPLETE]: ['connected', message || '✅ All done! You can safely close this window.'],
   }
 
   const [className, html] = statusConfig[newState] || ['', '']
@@ -300,9 +300,11 @@ async function connectWallet() {
   }
   catch (error) {
     const errorMessage = error?.message || String(error) || 'User rejected wallet connection'
-    setState(States.ERROR, `Failed to connect: ${errorMessage}`)
+    walletAddress = null // Clear wallet address on failure
+    setState(States.DISCONNECTED, `Connection cancelled or failed`)
     log(`Connection failed: ${errorMessage}`, 'error')
     dom.connectBtn.style.display = 'block'
+    dom.walletInfo.style.display = 'none'
   }
 }
 
@@ -312,18 +314,29 @@ const requestHandlers = {
     setState(States.SIGNING, '✍️ Please approve the connection in your wallet...')
     log('Programmatic connection request...')
 
-    await window.arweaveWallet.connect(params.permissions, params.appInfo, params.gateway)
-    walletAddress = await window.arweaveWallet.getActiveAddress()
+    try {
+      await window.arweaveWallet.connect(params.permissions, params.appInfo, params.gateway)
+      walletAddress = await window.arweaveWallet.getActiveAddress()
 
-    if (currentState !== States.CONNECTED) {
-      dom.walletInfo.style.display = 'block'
-      dom.address.textContent = walletAddress
-      dom.connectBtn.style.display = 'none'
+      if (currentState !== States.CONNECTED) {
+        dom.walletInfo.style.display = 'block'
+        dom.address.textContent = walletAddress
+        dom.connectBtn.style.display = 'none'
+      }
+
+      await sendResponse(requestId, null)
+      setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+      log(`Wallet connected programmatically: ${walletAddress}`, 'success')
     }
-
-    await sendResponse(requestId, null)
-    setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
-    log(`Wallet connected programmatically: ${walletAddress}`, 'success')
+    catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      walletAddress = null // Clear wallet address on failure
+      setState(States.DISCONNECTED, 'Connection cancelled or failed')
+      log(`Connection failed: ${errorMsg}`, 'error')
+      dom.connectBtn.style.display = 'block'
+      dom.walletInfo.style.display = 'none'
+      throw err
+    }
   },
 
   async address(params, requestId) {
@@ -594,9 +607,13 @@ async function handleRequest(request) {
     await sendResponse(request.id, null, error.message)
     removeFromQueue(request.id)
 
+    // Only reset to CONNECTED if we actually have a wallet connected
     setTimeout(() => {
-      if (currentState === States.ERROR) {
+      if (currentState === States.ERROR && walletAddress) {
         setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
+      }
+      else if (currentState === States.ERROR && !walletAddress) {
+        setState(States.DISCONNECTED, '⚠️ Not connected - Click "Connect Wallet" to continue')
       }
     }, ERROR_RESET_DELAY)
   }
@@ -619,12 +636,12 @@ async function startPollingForRequests() {
 
       if (request.completed) {
         if (request.status === 'success') {
-          log('✅ Process successful!', 'success')
-          setState(States.COMPLETE, '✅ Process complete! You can close this window.')
+          log('✅ All operations completed successfully!', 'success')
+          setState(States.COMPLETE, '✅ All done! You can safely close this window.')
         }
         else {
-          log('❌ Process failed!', 'error')
-          setState(States.ERROR, 'Process failed. Check your CLI for details.')
+          log('❌ Operation failed or cancelled', 'error')
+          setState(States.ERROR, '❌ Operation failed. Check your terminal for details.')
         }
         break
       }

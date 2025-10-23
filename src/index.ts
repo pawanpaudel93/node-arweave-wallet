@@ -167,7 +167,18 @@ export class NodeArweaveWallet {
         resolve()
       })
 
-      this.server.on('error', reject)
+      this.server.on('error', (error: any) => {
+        if (error.code === 'EADDRINUSE') {
+          const errorMsg = `Port ${this.config.port} is already in use. `
+            + `Please either:\n`
+            + `  1. Close the application using port ${this.config.port}, or\n`
+            + `  2. Use a different port: new NodeArweaveWallet({ port: 0 }) for automatic selection`
+          reject(new Error(errorMsg))
+        }
+        else {
+          reject(error)
+        }
+      })
     })
   }
 

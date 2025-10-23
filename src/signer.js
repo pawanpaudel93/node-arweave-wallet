@@ -80,6 +80,7 @@ const ERROR_RESET_DELAY = 3000
 const WALLET_INJECTION_DELAY = 500
 const POLL_DELAY = 100
 const POLL_ERROR_DELAY = 1000
+const AUTO_CLOSE_DELAY = 5000
 
 // ==================== State Variables ====================
 let currentState = States.DISCONNECTED
@@ -619,6 +620,46 @@ async function handleRequest(request) {
   }
 }
 
+// ==================== Auto-Close ====================
+function autoCloseWindow(status) {
+  let countdown = Math.floor(AUTO_CLOSE_DELAY / 1000)
+  
+  const updateCountdown = () => {
+    if (countdown > 0) {
+      const message = status === 'success' 
+        ? `✅ All done! Closing window in ${countdown} second${countdown !== 1 ? 's' : ''}...`
+        : `Operation failed. Closing window in ${countdown} second${countdown !== 1 ? 's' : ''}...`
+      
+      if (status === 'success') {
+        setState(States.COMPLETE, message)
+      } else {
+        setState(States.ERROR, message)
+      }
+      
+      countdown--
+      setTimeout(updateCountdown, 1000)
+    } else {
+      log('Closing window...', status === 'success' ? 'success' : 'error')
+      window.close()
+      
+      // Fallback message if window.close() doesn't work (some browsers block it)
+      setTimeout(() => {
+        const fallbackMessage = status === 'success'
+          ? '✅ All done! You can close this window manually.'
+          : 'Operation failed. You can close this window manually.'
+        
+        if (status === 'success') {
+          setState(States.COMPLETE, fallbackMessage)
+        } else {
+          setState(States.ERROR, fallbackMessage)
+        }
+      }, 500)
+    }
+  }
+  
+  updateCountdown()
+}
+
 // ==================== Polling ====================
 async function startPollingForRequests() {
   if (polling) return
@@ -638,10 +679,12 @@ async function startPollingForRequests() {
         if (request.status === 'success') {
           log('✅ All operations completed successfully!', 'success')
           setState(States.COMPLETE, '✅ All done! You can safely close this window.')
+          autoCloseWindow('success')
         }
         else {
           log('❌ Operation failed or cancelled', 'error')
           setState(States.ERROR, '❌ Operation failed. Check your terminal for details.')
+          autoCloseWindow('failed')
         }
         break
       }

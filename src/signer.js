@@ -2,7 +2,7 @@
  * Browser Wallet Signer - Client-side JavaScript
  *
  * This script handles communication between the Node.js server and the
- * Arweave browser wallet extension (Wander).
+ * Arweave browser wallet extension (Wander or any other compatible wallet).
  *
  */
 
@@ -303,7 +303,7 @@ async function checkAPISupport(methodName, requestId) {
 async function connectWallet() {
   try {
     if (!window.arweaveWallet) {
-      setState(States.ERROR, 'No Arweave wallet found. Please install Wander.')
+      setState(States.ERROR, 'No Arweave wallet found. Please install or any other compatible wallet.')
       log('No wallet extension found', 'error')
       return
     }
@@ -780,8 +780,8 @@ window.addEventListener('load', () => {
         })
     }
     else {
-      setState(States.ERROR, 'No Arweave wallet extension detected<br><small>Please install Wander and refresh this page</small>')
-      log('Please install Wander extension', 'error')
+      setState(States.ERROR, 'No Arweave wallet extension detected<br><small>Please install Wander or any other compatible wallet and refresh this page</small>')
+      log('Please install Wander or any other compatible wallet extension', 'error')
     }
   }, WALLET_INJECTION_DELAY)
 })

@@ -6,7 +6,7 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-Use Arweave browser wallets ([Wander](https://wander.arweave.dev) or any other compatible wallet) from Node.js applications. Perfect for CLI tools and scripts that need secure wallet interactions without exposing private keys.
+Use Arweave browser wallets ([Wander](https://wander.app) or any other compatible wallet) from Node.js applications. Perfect for CLI tools and scripts that need secure wallet interactions without exposing private keys.
 
 ## ✨ Features
 
@@ -581,7 +581,7 @@ async function manageTokens() {
 
 Works with any arweaveWallet compatible browser wallet:
 
-- ✅ [Wander](https://wander.arweave.dev) (Recommended)
+- ✅ [Wander](https://wander.app) (Recommended)
 - ✅ Any wallet implementing the arweaveWallet API
 
 ## 🐛 Troubleshooting

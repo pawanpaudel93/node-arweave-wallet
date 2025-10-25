@@ -1,7 +1,7 @@
 {
   "name": "node-arweave-wallet",
   "type": "module",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "packageManager": "pnpm@10.17.1",
   "description": "Use Arweave browser wallets (Wander or any other compatible wallet) from Node.js applications. Perfect for CLI tools and scripts that need secure wallet interactions without exposing private keys.",
   "author": "Pawan Paudel <pawanpaudel93@gmail.com>",

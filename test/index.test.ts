@@ -26,7 +26,7 @@ describe('nodeArweaveWallet API Methods', () => {
 
   beforeAll(async () => {
     // Initialize the wallet
-    arweaveWallet = new NodeArweaveWallet()
+    arweaveWallet = new NodeArweaveWallet({ freePortIfInUse: true })
     await arweaveWallet.initialize()
 
     // Connect wallet programmatically

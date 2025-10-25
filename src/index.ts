@@ -978,6 +978,11 @@ export class NodeArweaveWallet {
       if (this.sseClient === res) {
         this.sseClient = null
         this.browserConnected = false
+        this.close('failed')
+        for (const [id, request] of this.pendingRequests.entries()) {
+          request.reject(new Error('Browser connection lost'))
+          this.pendingRequests.delete(id)
+        }
       }
     })
   }

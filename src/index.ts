@@ -164,7 +164,17 @@ export class NodeArweaveWallet {
 
   // ==================== Public API ====================
   /**
-   * Start the local server and open the browser
+   * Initializes the wallet connection by starting a local HTTP server and opening the browser
+   * for wallet authentication. This must be called before any other wallet operations.
+   *
+   * @returns A promise that resolves when the server is started and browser is opened
+   * @throws {Error} If the port is already in use or server fails to start
+   *
+   * @example
+   * ```typescript
+   * const wallet = new NodeArweaveWallet()
+   * await wallet.initialize()
+   * ```
    */
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -198,7 +208,22 @@ export class NodeArweaveWallet {
   }
 
   /**
-   * Connect wallet programmatically
+   * Requests a connection to the user's Arweave wallet with specified permissions.
+   * This prompts the user to approve the connection in their browser wallet extension.
+   *
+   * @param permissions - Array of permission types to request from the wallet
+   * @param appInfo - Optional application information (name and logo)
+   * @param gateway - Optional custom Arweave gateway configuration
+   * @returns A promise that resolves when the wallet connection is approved
+   * @throws {Error} If the user rejects the connection or wallet is not available
+   *
+   * @example
+   * ```typescript
+   * await wallet.connect(
+   *   ['ACCESS_ADDRESS', 'SIGN_TRANSACTION', 'DISPATCH'],
+   *   { name: 'My App', logo: 'https://example.com/logo.png' }
+   * )
+   * ```
    */
   async connect(
     permissions: PermissionType[],
@@ -210,7 +235,17 @@ export class NodeArweaveWallet {
   }
 
   /**
-   * Get active wallet address from browser
+   * Retrieves the currently active wallet address.
+   * Requires ACCESS_ADDRESS permission.
+   *
+   * @returns A promise that resolves to the active wallet address
+   * @throws {Error} If permission is not granted or wallet is not connected
+   *
+   * @example
+   * ```typescript
+   * const address = await wallet.getActiveAddress()
+   * console.log('Wallet address:', address)
+   * ```
    */
   async getActiveAddress(): Promise<string> {
     if (this.address)
@@ -220,30 +255,118 @@ export class NodeArweaveWallet {
     return this.address
   }
 
+  /**
+   * Disconnects the current wallet connection and revokes all permissions.
+   *
+   * @returns A promise that resolves when the wallet is disconnected
+   *
+   * @example
+   * ```typescript
+   * await wallet.disconnect()
+   * ```
+   */
   async disconnect(): Promise<void> {
     return this.makeWalletRequest<void>('disconnect', {})
   }
 
+  /**
+   * Retrieves all wallet addresses available in the connected wallet.
+   * Requires ACCESS_ALL_ADDRESSES permission.
+   *
+   * @returns A promise that resolves to an array of wallet addresses
+   * @throws {Error} If permission is not granted
+   *
+   * @example
+   * ```typescript
+   * const addresses = await wallet.getAllAddresses()
+   * console.log('Available addresses:', addresses)
+   * ```
+   */
   async getAllAddresses(): Promise<string[]> {
     return this.makeWalletRequest<string[]>('getAllAddresses', {})
   }
 
+  /**
+   * Retrieves the names associated with wallet addresses.
+   * Requires ACCESS_ALL_ADDRESSES permission.
+   *
+   * @returns A promise that resolves to an object mapping addresses to their names
+   *
+   * @example
+   * ```typescript
+   * const names = await wallet.getWalletNames()
+   * // Returns: { "address1": "Main Wallet", "address2": "Trading Wallet" }
+   * ```
+   */
   async getWalletNames(): Promise<{ [address: string]: string }> {
     return this.makeWalletRequest<{ [address: string]: string }>('getWalletNames', {})
   }
 
+  /**
+   * Retrieves the list of permissions currently granted to the application.
+   *
+   * @returns A promise that resolves to an array of granted permission types
+   *
+   * @example
+   * ```typescript
+   * const permissions = await wallet.getPermissions()
+   * console.log('Granted permissions:', permissions)
+   * ```
+   */
   async getPermissions(): Promise<PermissionType[]> {
     return this.makeWalletRequest<PermissionType[]>('getPermissions', {})
   }
 
+  /**
+   * Retrieves the Arweave gateway configuration used by the wallet.
+   * Requires ACCESS_ARWEAVE_CONFIG permission.
+   *
+   * @returns A promise that resolves to the gateway configuration
+   *
+   * @example
+   * ```typescript
+   * const config = await wallet.getArweaveConfig()
+   * // Returns: { host: "arweave.net", port: 443, protocol: "https" }
+   * ```
+   */
   async getArweaveConfig(): Promise<Gateway> {
     return this.makeWalletRequest<Gateway>('getArweaveConfig', {})
   }
 
+  /**
+   * Retrieves the public key of the currently active wallet.
+   * Requires ACCESS_PUBLIC_KEY permission.
+   *
+   * @returns A promise that resolves to public key
+   * @throws {Error} If permission is not granted
+   *
+   * @example
+   * ```typescript
+   * const publicKey = await wallet.getActivePublicKey()
+   * ```
+   */
   async getActivePublicKey(): Promise<string> {
     return this.makeWalletRequest<string>('getActivePublicKey', {})
   }
 
+  /**
+   * Signs arbitrary data with the wallet's private key using a specified algorithm.
+   * Requires SIGNATURE permission.
+   *
+   * @param data - The data to sign as a Uint8Array
+   * @param algorithm - The signing algorithm (e.g., RSA-PSS, ECDSA)
+   * @returns A promise that resolves to the signature as a Uint8Array
+   * @throws {Error} If permission is not granted or signing fails
+   *
+   * @example
+   * ```typescript
+   * const data = new TextEncoder().encode('Hello, Arweave!')
+   * const signature = await wallet.signature(data, {
+   *   name: 'RSA-PSS',
+   *   saltLength: 32
+   * })
+   * ```
+   */
   async signature(
     data: Uint8Array,
     algorithm: AlgorithmIdentifier | RsaPssParams | EcdsaParams,
@@ -253,6 +376,22 @@ export class NodeArweaveWallet {
     return base64ToBuffer(result)
   }
 
+  /**
+   * Signs an Arweave transaction with the wallet's private key.
+   * Requires SIGN_TRANSACTION permission.
+   *
+   * @param transaction - The Arweave transaction to sign
+   * @param options - Optional signature options
+   * @returns A promise that resolves to the signed transaction
+   * @throws {Error} If permission is not granted or signing fails
+   *
+   * @example
+   * ```typescript
+   * const tx = await arweave.createTransaction({ data: 'Hello Arweave!' })
+   * const signedTx = await wallet.sign(tx)
+   * await arweave.transactions.post(signedTx)
+   * ```
+   */
   async sign(transaction: Transaction, options?: SignatureOptions): Promise<Transaction> {
     const data = await this.makeWalletRequest<any>('sign', { transaction, options })
     const signedTx = arweave.transactions.fromRaw(data)
@@ -266,10 +405,47 @@ export class NodeArweaveWallet {
     return transaction
   }
 
+  /**
+   * Signs and dispatches an Arweave transaction to the network in one operation.
+   * Requires DISPATCH permission.
+   *
+   * @param transaction - The Arweave transaction to sign and dispatch
+   * @param options - Optional signature options
+   * @returns A promise that resolves to the dispatch result with transaction ID
+   * @throws {Error} If permission is not granted or dispatch fails
+   *
+   * @example
+   * ```typescript
+   * const tx = await arweave.createTransaction({ data: 'Hello Arweave!' })
+   * tx.addTag('Content-Type', 'text/plain')
+   * const result = await wallet.dispatch(tx)
+   * console.log('Transaction ID:', result.id)
+   * ```
+   */
   async dispatch(transaction: Transaction, options?: SignatureOptions): Promise<DispatchResult> {
     return this.makeWalletRequest<DispatchResult>('dispatch', { transaction, options })
   }
 
+  /**
+   * Encrypts data using the wallet's public key.
+   * Requires ENCRYPT permission.
+   *
+   * @param data - The data to encrypt (string or Uint8Array)
+   * @param options - Encryption options
+   * @param options.algorithm - The encryption algorithm (e.g., 'RSA-OAEP')
+   * @param options.hash - The hash algorithm (e.g., 'SHA-256')
+   * @param options.salt - Optional salt value
+   * @returns A promise that resolves to the encrypted data as a Uint8Array
+   * @throws {Error} If permission is not granted or encryption fails
+   *
+   * @example
+   * ```typescript
+   * const encrypted = await wallet.encrypt('Secret message', {
+   *   algorithm: 'RSA-OAEP',
+   *   hash: 'SHA-256'
+   * })
+   * ```
+   */
   async encrypt(
     data: string | Uint8Array,
     options: { algorithm: string, hash: string, salt?: string },
@@ -279,6 +455,27 @@ export class NodeArweaveWallet {
     return base64ToBuffer(result)
   }
 
+  /**
+   * Decrypts data using the wallet's private key.
+   * Requires DECRYPT permission.
+   *
+   * @param data - The encrypted data as a Uint8Array
+   * @param options - Decryption options
+   * @param options.algorithm - The decryption algorithm (e.g., 'RSA-OAEP')
+   * @param options.hash - The hash algorithm (e.g., 'SHA-256')
+   * @param options.salt - Optional salt value
+   * @returns A promise that resolves to the decrypted data as a Uint8Array
+   * @throws {Error} If permission is not granted or decryption fails
+   *
+   * @example
+   * ```typescript
+   * const decrypted = await wallet.decrypt(encryptedData, {
+   *   algorithm: 'RSA-OAEP',
+   *   hash: 'SHA-256'
+   * })
+   * const text = new TextDecoder().decode(decrypted)
+   * ```
+   */
   async decrypt(
     data: Uint8Array,
     options: { algorithm: string, hash: string, salt?: string },
@@ -288,20 +485,84 @@ export class NodeArweaveWallet {
     return base64ToBuffer(result)
   }
 
+  /**
+   * Creates a private hash of data using the wallet's private key.
+   * Requires SIGNATURE permission.
+   *
+   * @param data - The data to hash (Uint8Array or ArrayBuffer)
+   * @param options - Optional hash algorithm options (default: SHA-256)
+   * @returns A promise that resolves to the hash as a Uint8Array
+   * @throws {Error} If permission is not granted or hashing fails
+   *
+   * @example
+   * ```typescript
+   * const data = new TextEncoder().encode('Data to hash')
+   * const hash = await wallet.privateHash(data, { hashAlgorithm: 'SHA-256' })
+   * ```
+   */
   async privateHash(data: Uint8Array | ArrayBuffer, options?: SignMessageOptions): Promise<Uint8Array> {
     const dataBase64 = bufferToBase64(data)
     const result = await this.makeWalletRequest<string>('privateHash', { data: dataBase64, options })
     return base64ToBuffer(result)
   }
 
+  /**
+   * Adds a token to the wallet's token list.
+   * Requires ACCESS_TOKENS permission.
+   *
+   * @param id - The token ID (process ID on Arweave)
+   * @param type - The token type ('asset' or 'collectible')
+   * @param gateway - Optional custom gateway configuration
+   * @returns A promise that resolves when the token is added
+   * @throws {Error} If permission is not granted or token addition fails
+   *
+   * @example
+   * ```typescript
+   * await wallet.addToken('xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'asset')
+   * ```
+   */
   async addToken(id: string, type?: TokenType, gateway?: Gateway): Promise<void> {
     return this.makeWalletRequest<void>('addToken', { id, type, gateway })
   }
 
+  /**
+   * Checks if a token has been added to the wallet.
+   * Requires ACCESS_TOKENS permission.
+   *
+   * @param id - The token ID to check
+   * @returns A promise that resolves to true if the token is added, false otherwise
+   * @throws {Error} If permission is not granted
+   *
+   * @example
+   * ```typescript
+   * const isAdded = await wallet.isTokenAdded('xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10')
+   * console.log('Token added:', isAdded)
+   * ```
+   */
   async isTokenAdded(id: string): Promise<boolean> {
     return this.makeWalletRequest<boolean>('isTokenAdded', { id })
   }
 
+  /**
+   * Signs a data item for ANS-104 bundling.
+   * Requires SIGN_TRANSACTION permission.
+   *
+   * @param dataItem - The data item to sign (data, tags, optional target and anchor)
+   * @param options - Optional signature options
+   * @returns A promise that resolves to the signed data item as a Uint8Array
+   * @throws {Error} If permission is not granted or signing fails
+   *
+   * @example
+   * ```typescript
+   * const signedDataItem = await wallet.signDataItem({
+   *   data: 'Hello from data item!',
+   *   tags: [
+   *     { name: 'Content-Type', value: 'text/plain' },
+   *     { name: 'App-Name', value: 'MyApp' }
+   *   ]
+   * })
+   * ```
+   */
   async signDataItem(dataItem: DataItem, options?: SignatureOptions): Promise<Uint8Array> {
     const params = {
       data: typeof dataItem.data === 'string' ? dataItem.data : bufferToBase64(dataItem.data),
@@ -315,12 +576,46 @@ export class NodeArweaveWallet {
     return base64ToBuffer(result.signedDataItem)
   }
 
+  /**
+   * Signs a message by hashing it first and then signing the hash.
+   * Requires SIGNATURE permission.
+   *
+   * @param data - The message data to sign (Uint8Array or ArrayBuffer)
+   * @param options - Optional hash algorithm options (default: SHA-256)
+   * @returns A promise that resolves to the signature as a Uint8Array
+   * @throws {Error} If permission is not granted or signing fails
+   *
+   * @example
+   * ```typescript
+   * const data = new TextEncoder().encode('Message to sign')
+   * const signature = await wallet.signMessage(data, { hashAlgorithm: 'SHA-256' })
+   * ```
+   */
   async signMessage(data: Uint8Array | ArrayBuffer, options?: SignMessageOptions): Promise<Uint8Array> {
     const dataBase64 = bufferToBase64(data)
     const result = await this.makeWalletRequest<string>('signMessage', { data: dataBase64, options })
     return base64ToBuffer(result)
   }
 
+  /**
+   * Verifies a message signature against the original data.
+   * Requires SIGNATURE permission.
+   *
+   * @param data - The original message data
+   * @param signature - The signature to verify
+   * @param publicKey - Optional public key (uses wallet's public key if not provided)
+   * @param options - Optional hash algorithm options (default: SHA-256)
+   * @returns A promise that resolves to true if the signature is valid, false otherwise
+   * @throws {Error} If permission is not granted or verification fails
+   *
+   * @example
+   * ```typescript
+   * const isValid = await wallet.verifyMessage(data, signature, publicKey, {
+   *   hashAlgorithm: 'SHA-256'
+   * })
+   * console.log('Signature valid:', isValid)
+   * ```
+   */
   async verifyMessage(
     data: Uint8Array | ArrayBuffer,
     signature: Uint8Array | ArrayBuffer | string,
@@ -337,6 +632,24 @@ export class NodeArweaveWallet {
     })
   }
 
+  /**
+   * Signs multiple data items in a single batch operation.
+   * Requires SIGN_TRANSACTION permission.
+   *
+   * @param dataItems - Array of data items to sign
+   * @param options - Optional signature options
+   * @returns A promise that resolves to an array of signed data items with IDs and raw data
+   * @throws {Error} If permission is not granted or signing fails
+   *
+   * @example
+   * ```typescript
+   * const results = await wallet.batchSignDataItem([
+   *   { data: 'First item', tags: [{ name: 'Type', value: 'Test1' }] },
+   *   { data: 'Second item', tags: [{ name: 'Type', value: 'Test2' }] }
+   * ])
+   * results.forEach(result => console.log('Signed item ID:', result.id))
+   * ```
+   */
   async batchSignDataItem(
     dataItems: DataItem[],
     options?: SignatureOptions,
@@ -363,22 +676,98 @@ export class NodeArweaveWallet {
     )
   }
 
+  /**
+   * Retrieves the balance of a specific token.
+   * Requires ACCESS_TOKENS permission.
+   *
+   * @param id - The token ID (process ID)
+   * @returns A promise that resolves to the token balance as a string
+   * @throws {Error} If permission is not granted or the API is not supported
+   *
+   * @example
+   * ```typescript
+   * const balance = await wallet.tokenBalance('xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10')
+   * console.log('Token balance:', balance)
+   * ```
+   */
   async tokenBalance(id: string): Promise<string> {
     return this.makeWalletRequest<string>('tokenBalance', { id })
   }
 
+  /**
+   * Retrieves all tokens owned by the user.
+   * Requires ACCESS_TOKENS permission.
+   *
+   * @param options - Optional settings
+   * @param options.fetchBalance - Whether to fetch token balances (default: false)
+   * @returns A promise that resolves to an array of token information
+   * @throws {Error} If permission is not granted or the API is not supported
+   *
+   * @example
+   * ```typescript
+   * const tokens = await wallet.userTokens({ fetchBalance: true })
+   * tokens.forEach(token => {
+   *   console.log(`${token.Name || token.Ticker}: ${token.balance || 'N/A'}`)
+   * })
+   * ```
+   */
   async userTokens(options?: { fetchBalance?: boolean }): Promise<TokenInfo[]> {
     return this.makeWalletRequest<TokenInfo[]>('userTokens', { options })
   }
 
+  /**
+   * Retrieves Wander wallet tier information.
+   * This is a Wander-specific feature that provides tier status, progress, and ranking.
+   *
+   * @returns A promise that resolves to the tier information
+   * @throws {Error} If the wallet doesn't support this feature or the API is not available
+   *
+   * @example
+   * ```typescript
+   * const tierInfo = await wallet.getWanderTierInfo()
+   * console.log(`Tier: ${tierInfo.tier}`)
+   * console.log(`Progress: ${(tierInfo.progress * 100).toFixed(2)}%`)
+   * console.log(`Rank: ${tierInfo.rank || 'N/A'}`)
+   * ```
+   */
   async getWanderTierInfo(): Promise<ActiveTier> {
     return this.makeWalletRequest<ActiveTier>('getWanderTierInfo', {})
   }
 
+  /**
+   * Creates a data item signer compatible with @permaweb/aoconnect.
+   * This signer can be used with aoconnect's message() and spawn() functions.
+   *
+   * @returns A signer function compatible with aoconnect
+   *
+   * @example
+   * ```typescript
+   * import { message } from '@permaweb/aoconnect'
+   *
+   * const signer = wallet.getDataItemSigner()
+   * const messageId = await message({
+   *   process: 'PROCESS_ID',
+   *   signer,
+   *   tags: [{ name: 'Action', value: 'Hello' }],
+   *   data: 'Hello from browser wallet!'
+   * })
+   * ```
+   */
   getDataItemSigner() {
     return this.createDataItemSigner()
   }
 
+  /**
+   * Marks the wallet operations as complete and notifies the browser.
+   * This will trigger the auto-close countdown in the browser window.
+   *
+   * @param status - The completion status ('success' or 'failed')
+   *
+   * @example
+   * ```typescript
+   * wallet.markComplete('success')
+   * ```
+   */
   markComplete(status: 'success' | 'failed' = 'success'): void {
     this.complete = true
 
@@ -388,6 +777,23 @@ export class NodeArweaveWallet {
     }
   }
 
+  /**
+   * Closes the wallet connection, stops the server, and cleans up resources.
+   * This should be called when you're done with all wallet operations.
+   *
+   * @param status - The completion status ('success' or 'failed')
+   * @returns A promise that resolves when the connection is closed
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   // ... perform wallet operations ...
+   *   await wallet.close('success')
+   * } catch (error) {
+   *   await wallet.close('failed')
+   * }
+   * ```
+   */
   async close(status: 'success' | 'failed' = 'success'): Promise<void> {
     if (!this.server)
       return
@@ -684,8 +1090,29 @@ export class NodeArweaveWallet {
 
 // ==================== Exports ====================
 /**
- * Creates a DataItemSigner compatible with @permaweb/aoconnect
- * Similar to aoconnect's createDataItemSigner but uses browser wallet
+ * Creates a DataItemSigner compatible with @permaweb/aoconnect.
+ * This is a convenience function that wraps the wallet's getDataItemSigner() method.
+ * The returned signer can be used with aoconnect's message() and spawn() functions.
+ *
+ * @param arweaveWallet - The NodeArweaveWallet instance
+ * @returns A signer function compatible with aoconnect
+ *
+ * @example
+ * ```typescript
+ * import { message } from '@permaweb/aoconnect'
+ * import { createDataItemSigner, NodeArweaveWallet } from 'node-arweave-wallet'
+ *
+ * const wallet = new NodeArweaveWallet()
+ * await wallet.initialize()
+ * await wallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION'])
+ *
+ * const signer = createDataItemSigner(wallet)
+ * const messageId = await message({
+ *   process: 'PROCESS_ID',
+ *   signer,
+ *   tags: [{ name: 'Action', value: 'Balance' }]
+ * })
+ * ```
  */
 export function createDataItemSigner(arweaveWallet: NodeArweaveWallet) {
   return arweaveWallet.getDataItemSigner()

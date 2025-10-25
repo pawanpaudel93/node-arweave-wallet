@@ -87,7 +87,42 @@ export interface EcdsaParams extends Algorithm {
   hash: AlgorithmIdentifier
 }
 
-export type EncryptDecryptOptions = { name: string } | { algorithm: string, hash: string, salt?: string }
+export type BufferSource = ArrayBufferView | ArrayBuffer
+
+export interface RsaOaepParams {
+  name: 'RSA-OAEP'
+  label?: BufferSource
+}
+
+export interface AesCtrParams {
+  name: 'AES-CTR'
+  counter: BufferSource
+  length: number
+}
+
+export interface AesCbcParams {
+  name: 'AES-CBC'
+  iv: BufferSource
+}
+
+export interface AesGcmParams {
+  name: 'AES-GCM'
+  iv: BufferSource
+  additionalData?: BufferSource
+  tagLength?: number
+}
+
+// New API format (current)
+export type EncryptDecryptAlgorithm = RsaOaepParams | AesCtrParams | AesCbcParams | AesGcmParams
+
+// Old deprecated format (for backwards compatibility)
+export interface DeprecatedEncryptDecryptOptions {
+  algorithm: string
+  hash: string
+  salt?: string
+}
+
+export type EncryptDecryptOptions = EncryptDecryptAlgorithm | DeprecatedEncryptDecryptOptions
 
 export interface TokenInfo {
   id?: string
@@ -481,15 +516,21 @@ export class NodeArweaveWallet {
    * Requires ENCRYPT permission.
    *
    * @param data - The data to encrypt (string or Uint8Array)
-   * @param options - Encryption options
-   * @param options.algorithm - The encryption algorithm (e.g., 'RSA-OAEP')
-   * @param options.hash - The hash algorithm (e.g., 'SHA-256')
-   * @param options.salt - Optional salt value
+   * @param options - Encryption algorithm parameters (RsaOaepParams, AesCtrParams, AesCbcParams, or AesGcmParams)
    * @returns A promise that resolves to the encrypted data as a Uint8Array
    * @throws {Error} If permission is not granted or encryption fails
    *
+   * @see https://docs.wander.app/api/encrypt
+   *
    * @example
    * ```typescript
+   * // New API format (recommended)
+   * const encrypted = await wallet.encrypt(
+   *   new TextEncoder().encode('Secret message'),
+   *   { name: 'RSA-OAEP' }
+   * )
+   *
+   * // Old deprecated format (still supported)
    * const encrypted = await wallet.encrypt('Secret message', {
    *   algorithm: 'RSA-OAEP',
    *   hash: 'SHA-256'
@@ -510,15 +551,22 @@ export class NodeArweaveWallet {
    * Requires DECRYPT permission.
    *
    * @param data - The encrypted data as a Uint8Array
-   * @param options - Decryption options
-   * @param options.algorithm - The decryption algorithm (e.g., 'RSA-OAEP')
-   * @param options.hash - The hash algorithm (e.g., 'SHA-256')
-   * @param options.salt - Optional salt value
+   * @param options - Decryption algorithm parameters (RsaOaepParams, AesCtrParams, AesCbcParams, or AesGcmParams)
    * @returns A promise that resolves to the decrypted data as a Uint8Array
    * @throws {Error} If permission is not granted or decryption fails
    *
+   * @see https://docs.wander.app/api/decrypt
+   *
    * @example
    * ```typescript
+   * // New API format (recommended)
+   * const decrypted = await wallet.decrypt(
+   *   encryptedData,
+   *   { name: 'RSA-OAEP' }
+   * )
+   * const text = new TextDecoder().decode(decrypted)
+   *
+   * // Old deprecated format (still supported)
    * const decrypted = await wallet.decrypt(encryptedData, {
    *   algorithm: 'RSA-OAEP',
    *   hash: 'SHA-256'

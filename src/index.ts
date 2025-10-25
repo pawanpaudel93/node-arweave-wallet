@@ -97,10 +97,8 @@ const REQUEST_TIMEOUT = 120000 // 120 seconds
 const BROWSER_TIMEOUT = 30000 // 30 seconds
 const HEARTBEAT_CHECK_INTERVAL = 10000 // 10 seconds - check infrequently to reduce overhead
 const HEARTBEAT_TIMEOUT = 300000 // 5 minutes - very generous timeout for user interactions
-const POLL_WAIT_TIME = 1000 // 1 second
 const SHUTDOWN_DELAY = 500 // 500ms
 const BROWSER_READY_DELAY = 500 // 500ms
-const POLLING_INTERVAL = 100 // 100ms
 
 const ARWEAVE_CONFIG = {
   host: 'arweave.net',
@@ -126,14 +124,13 @@ export class NodeArweaveWallet {
   private port: number = 0
   private readonly config: NodeArweaveWalletConfig
   private readonly pendingRequests = new Map<string, PendingRequest>()
-  private readonly connections = new Set<any>()
+  private sseClient: http.ServerResponse | null = null
 
   private address: string | null = null
   private browserConnected = false
   private lastHeartbeat = Date.now()
   private heartbeatInterval: NodeJS.Timeout | null = null
   private complete = false
-  private status: 'success' | 'failed' | null = null
 
   constructor(config: NodeArweaveWalletConfig = {}) {
     this.config = {
@@ -149,15 +146,10 @@ export class NodeArweaveWallet {
     return new Promise((resolve, reject) => {
       this.server = http.createServer((req, res) => this.handleRequest(req, res))
 
-      this.server.on('connection', (conn) => {
-        this.connections.add(conn)
-        conn.on('close', () => this.connections.delete(conn))
-      })
-
       this.server.listen(this.config.port, DEFAULT_HOST, () => {
         const addr = this.server!.address() as any
         this.port = addr.port
-        console.log(`\n🌐 Browser wallet signer started at http://localhost:${this.port}`)
+        console.log(`\n🌐 Arweave wallet signer started at http://localhost:${this.port}`)
         console.log('📱 Opening browser for wallet connection...\n')
 
         this.openBrowser(`http://localhost:${this.port}`)
@@ -353,7 +345,11 @@ export class NodeArweaveWallet {
 
   markComplete(status: 'success' | 'failed' = 'success'): void {
     this.complete = true
-    this.status = status
+
+    // Notify SSE client
+    if (this.sseClient) {
+      this.sendSSEComplete(status)
+    }
   }
 
   async close(status: 'success' | 'failed' = 'success'): Promise<void> {
@@ -371,10 +367,16 @@ export class NodeArweaveWallet {
 
     await new Promise(resolve => setTimeout(resolve, SHUTDOWN_DELAY))
 
-    for (const conn of this.connections) {
-      conn.destroy()
+    // Close SSE connection if open
+    if (this.sseClient) {
+      try {
+        this.sseClient.end()
+      }
+      catch {
+        // Ignore errors on close
+      }
+      this.sseClient = null
     }
-    this.connections.clear()
 
     if (this.server) {
       this.server.close()
@@ -420,9 +422,8 @@ export class NodeArweaveWallet {
 
     const handlers: Record<string, () => void> = {
       'GET /': () => this.handleGetRoot(res),
-      'POST /poll': () => this.handlePoll(res),
+      'GET /events': () => this.handleSSE(res),
       'POST /response': () => this.handleResponse(req, res),
-      'POST /get-request': () => this.handleGetRequest(req, res),
     }
 
     const key = `${req.method} ${req.url}`
@@ -448,31 +449,70 @@ export class NodeArweaveWallet {
     res.end(this.getSignerHTML())
   }
 
-  private handlePoll(res: http.ServerResponse): void {
+  private handleSSE(res: http.ServerResponse): void {
+    // Set up SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+    })
+
+    // Mark browser as connected
     this.lastHeartbeat = Date.now()
     if (!this.browserConnected) {
       this.browserConnected = true
     }
 
-    if (this.complete) {
-      this.sendJSON(res, 200, { id: null, completed: true, status: this.status })
+    // Store the SSE client (only one per browser window)
+    this.sseClient = res
+
+    // Send initial connection message
+    res.write('data: {"type":"connected"}\n\n')
+
+    // Send any pending requests immediately
+    const existingRequest = Array.from(this.pendingRequests.entries())[0]
+    if (existingRequest) {
+      const [id, value] = existingRequest
+      if (value.data) {
+        this.sendSSERequest(id, value.data.type, value.data)
+      }
+    }
+
+    // Handle client disconnect
+    res.on('close', () => {
+      if (this.sseClient === res) {
+        this.sseClient = null
+        this.browserConnected = false
+      }
+    })
+  }
+
+  private sendSSERequest(id: string, type: string, data: any): void {
+    if (!this.sseClient)
       return
-    }
 
-    const request = Array.from(this.pendingRequests.entries())[0]
-    if (request) {
-      const [id, value] = request
-      const requestData = value.data
-
-      if (requestData) {
-        this.sendJSON(res, 200, { id, type: requestData.type, data: requestData })
-      }
-      else {
-        setTimeout(() => this.sendJSON(res, 200, { id: null }), POLL_WAIT_TIME)
-      }
+    const event = JSON.stringify({ id, type, data })
+    try {
+      this.sseClient.write(`data: ${event}\n\n`)
     }
-    else {
-      setTimeout(() => this.sendJSON(res, 200, { id: null }), POLL_WAIT_TIME)
+    catch (error) {
+      console.error('Failed to send SSE request:', error)
+      this.sseClient = null
+    }
+  }
+
+  private sendSSEComplete(status: 'success' | 'failed'): void {
+    if (!this.sseClient)
+      return
+
+    const event = JSON.stringify({ type: 'completed', status })
+    try {
+      this.sseClient.write(`data: ${event}\n\n`)
+    }
+    catch (error) {
+      console.error('Failed to send SSE completion:', error)
+      this.sseClient = null
     }
   }
 
@@ -500,25 +540,6 @@ export class NodeArweaveWallet {
     })
   }
 
-  private handleGetRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-    this.readRequestBody(req, (body) => {
-      try {
-        const { id } = JSON.parse(body)
-        const pending = this.pendingRequests.get(id)
-
-        if (pending?.data) {
-          this.sendJSON(res, 200, pending.data)
-        }
-        else {
-          this.sendJSON(res, 404, { error: 'Request not found' })
-        }
-      }
-      catch (error: any) {
-        this.sendJSON(res, 400, { error: error.message })
-      }
-    })
-  }
-
   private readRequestBody(req: http.IncomingMessage, callback: (body: string) => void): void {
     let body = ''
     req.on('data', chunk => (body += chunk.toString()))
@@ -533,9 +554,10 @@ export class NodeArweaveWallet {
   private async waitForBrowserConnection(timeout = BROWSER_TIMEOUT): Promise<void> {
     const startTime = Date.now()
     const initialHeartbeat = this.lastHeartbeat
+    const checkInterval = 100 // Check every 100ms
 
     while (this.lastHeartbeat === initialHeartbeat && Date.now() - startTime < timeout) {
-      await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL))
+      await new Promise(resolve => setTimeout(resolve, checkInterval))
     }
 
     if (this.lastHeartbeat === initialHeartbeat) {
@@ -564,6 +586,10 @@ export class NodeArweaveWallet {
         },
         data: { type, params },
       })
+
+      if (this.sseClient) {
+        this.sendSSERequest(id, type, { type, params })
+      }
     })
   }
 

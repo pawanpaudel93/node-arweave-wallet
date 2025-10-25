@@ -78,14 +78,13 @@ const MAX_LOG_ENTRIES = 50
 const QUEUE_CLEANUP_DELAY = 2000
 const ERROR_RESET_DELAY = 3000
 const WALLET_INJECTION_DELAY = 500
-const POLL_DELAY = 100
 const POLL_ERROR_DELAY = 1000
 const AUTO_CLOSE_DELAY = 5000
 
 // ==================== State Variables ====================
 let currentState = States.DISCONNECTED
 let walletAddress = null
-let polling = false
+let eventSource = null
 const requestQueue = new Map()
 
 const arweave = Arweave.init({
@@ -582,13 +581,8 @@ async function handleRequest(request) {
   try {
     addToQueue(request.id, request.type, 'processing')
 
-    const dataResponse = await fetch('/get-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: request.id }),
-    })
-    const requestData = await dataResponse.json()
-    const params = requestData.params || {}
+    // Request data is already included in the SSE event
+    const params = request.data?.params || {}
 
     const handler = requestHandlers[request.type]
     if (handler) {
@@ -661,23 +655,28 @@ function autoCloseWindow(status) {
   updateCountdown()
 }
 
-// ==================== Polling ====================
-async function startPollingForRequests() {
-  if (polling) return
-  polling = true
-  log('Started listening for requests from CLI...')
-
-  while (true) {
+// ==================== Server-Sent Events (SSE) ====================
+function startEventStream() {
+  if (eventSource) return
+  
+  log('🚀 Connecting via EventSource...')
+  
+  eventSource = new EventSource('/events')
+  
+  eventSource.onopen = () => {
+    log('✅ EventSource connected - instant request delivery!', 'success')
+  }
+  
+  eventSource.onmessage = async (event) => {
     try {
-      const response = await fetch('/poll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      const request = await response.json()
-
-      if (request.completed) {
-        if (request.status === 'success') {
+      const data = JSON.parse(event.data)
+      
+      // Handle different event types
+      if (data.type === 'connected') {
+        log('Connected to server via EventSource')
+      }
+      else if (data.type === 'completed') {
+        if (data.status === 'success') {
           log('✅ All operations completed successfully!', 'success')
           setState(States.COMPLETE, '✅ All done! You can safely close this window.')
           autoCloseWindow('success')
@@ -687,18 +686,29 @@ async function startPollingForRequests() {
           setState(States.ERROR, '❌ Operation failed. Check your terminal for details.')
           autoCloseWindow('failed')
         }
-        break
+        eventSource.close()
       }
-
-      if (request.id && request.type) {
-        await handleRequest(request)
+      else if (data.id && data.type) {
+        // New request received - handle it immediately!
+        await handleRequest(data)
       }
-
-      await new Promise(resolve => setTimeout(resolve, POLL_DELAY))
     }
     catch (error) {
-      console.error('Polling error:', error)
-      await new Promise(resolve => setTimeout(resolve, POLL_ERROR_DELAY))
+      console.error('EventSource message error:', error)
+    }
+  }
+  
+  eventSource.onerror = (error) => {
+    console.error('EventSource error:', error)
+    log('Connection interrupted, reconnecting...', 'error')
+    
+    // EventSource automatically reconnects, but we can handle errors here
+    if (eventSource.readyState === EventSource.CLOSED) {
+      log('EventSource closed, attempting to reconnect...', 'error')
+      setTimeout(() => {
+        eventSource = null
+        startEventStream()
+      }, POLL_ERROR_DELAY)
     }
   }
 }
@@ -707,7 +717,7 @@ async function startPollingForRequests() {
 window.addEventListener('load', () => {
   cacheDOMElements()
   initTheme()
-  startPollingForRequests()
+  startEventStream()
 
   setTimeout(() => {
     if (window.arweaveWallet) {

@@ -87,6 +87,8 @@ export interface EcdsaParams extends Algorithm {
   hash: AlgorithmIdentifier
 }
 
+export type EncryptDecryptOptions = { name: string } | { algorithm: string, hash: string, salt?: string }
+
 export interface TokenInfo {
   id?: string
   Name?: string
@@ -496,7 +498,7 @@ export class NodeArweaveWallet {
    */
   async encrypt(
     data: string | Uint8Array,
-    options: { algorithm: string, hash: string, salt?: string },
+    options: EncryptDecryptOptions,
   ): Promise<Uint8Array> {
     const dataToEncrypt = typeof data === 'string' ? data : bufferToBase64(data)
     const result = await this.makeWalletRequest<string>('encrypt', { data: dataToEncrypt, options })
@@ -526,7 +528,7 @@ export class NodeArweaveWallet {
    */
   async decrypt(
     data: Uint8Array,
-    options: { algorithm: string, hash: string, salt?: string },
+    options: EncryptDecryptOptions,
   ): Promise<Uint8Array> {
     const dataBase64 = bufferToBase64(data)
     const result = await this.makeWalletRequest<string>('decrypt', { data: dataBase64, options })

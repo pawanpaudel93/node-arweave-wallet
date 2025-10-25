@@ -6,14 +6,12 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-Use Arweave browser wallets ([Wander](https://wander.arweave.dev)) from Node.js applications. Perfect for CLI tools, scripts, and backend services that need secure wallet interactions without exposing private keys.
+Use Arweave browser wallets ([Wander](https://wander.arweave.dev) or any other compatible wallet) from Node.js applications. Perfect for CLI tools and scripts that need secure wallet interactions without exposing private keys.
 
 ## ✨ Features
 
-- 🔐 **Full Arweave Wallet API Support** - Complete implementation of the ArConnect API
-- 🌐 **Browser-Based Security** - Uses your existing browser wallet (Wander), keeping keys secure
-- 🚀 **Simple Async/Await Interface** - Clean, modern JavaScript/TypeScript API
-- 📦 **TypeScript First** - Full type definitions included
+- 🔐 **Full Arweave Wallet API Support** - Complete implementation of the arweaveWallet API
+- 🌐 **Browser-Based Security** - Uses your existing browser wallet (Wander or any other compatible wallet), keeping keys secure
 - 🔌 **@permaweb/aoconnect Compatible** - Works seamlessly with `@permaweb/aoconnect`
 
 ## 📦 Installation
@@ -497,7 +495,6 @@ async function batchUpload(files: string[]) {
 - **No Private Keys in Node.js** - Your private keys never leave the browser wallet
 - **Browser Extension Security** - Leverages battle-tested browser wallet security
 - **Local-Only Server** - Server only listens on `127.0.0.1` (localhost)
-- **User Confirmation** - All transactions require explicit user approval in the browser
 - **Permission-Based** - Request only the permissions you need
 
 ## 🤝 Browser Wallet Compatibility

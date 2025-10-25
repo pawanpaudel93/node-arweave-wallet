@@ -47,8 +47,11 @@ const OPERATION_ICONS = {
   getWalletNames: '👤',
   getPermissions: '🔑',
   getArweaveConfig: '⚙️',
-  getPublicKey: '🔐',
+  getActivePublicKey: '🔐',
   disconnect: '🔌',
+  getWanderTierInfo: '🔍',
+  tokenBalance: '🪙',
+  userTokens: '👤',
 }
 
 const OPERATION_LABELS = {
@@ -70,8 +73,12 @@ const OPERATION_LABELS = {
   getWalletNames: 'Getting wallet names',
   getPermissions: 'Getting permissions',
   getArweaveConfig: 'Getting config',
-  getPublicKey: 'Getting public key',
+  getActivePublicKey: 'Getting public key',
   disconnect: 'Disconnecting',
+  getWanderTierInfo: 'Getting Wander tier info',
+  tokenBalance: 'Getting token balance',
+  userTokens: 'Getting user tokens',
+  getWanderTierInfo: 'Getting Wander tier info',
 }
 
 const MAX_LOG_ENTRIES = 50
@@ -276,6 +283,22 @@ async function sendResponse(id, result, error = null) {
   })
 }
 
+/**
+ * Check if a wallet API method is supported
+ * @param {string} methodName - The name of the wallet API method to check
+ * @param {string} requestId - The request ID to send error response to
+ * @returns {Promise<boolean>} - Returns true if supported, false otherwise (and sends error response)
+ */
+async function checkAPISupport(methodName, requestId) {
+  if (!window.arweaveWallet || !window.arweaveWallet[methodName]) {
+    const errorMsg = `${methodName} API not supported by this wallet`
+    await sendResponse(requestId, null, errorMsg)
+    log(errorMsg, 'error')
+    return false
+  }
+  return true
+}
+
 // ==================== Wallet Connection ====================
 async function connectWallet() {
   try {
@@ -380,7 +403,7 @@ const requestHandlers = {
     log('Config retrieved', 'success')
   },
 
-  async getPublicKey(params, requestId) {
+  async getActivePublicKey(params, requestId) {
     log('Getting public key...')
     const publicKey = await window.arweaveWallet.getActivePublicKey()
     await sendResponse(requestId, publicKey)
@@ -574,6 +597,27 @@ const requestHandlers = {
     setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
     log(`Batch signed ${results.length} items successfully!`, 'success')
   },
+
+  async tokenBalance(params, requestId) {
+    log('Getting token balance...')
+    const balance = await window.arweaveWallet.tokenBalance(params.id)
+    await sendResponse(requestId, balance)
+    log('Token balance retrieved', 'success')
+  },
+
+  async userTokens(params, requestId) {
+    log('Getting user tokens...')
+    const tokens = await window.arweaveWallet.userTokens(params.options)
+    await sendResponse(requestId, tokens)
+    log('User tokens retrieved', 'success')
+  },
+
+  async getWanderTierInfo(params, requestId) {
+    log('Getting Wander tier info...')
+    const tierInfo = await window.arweaveWallet.getWanderTierInfo()
+    await sendResponse(requestId, tierInfo)
+    log('Wander tier info retrieved', 'success')
+  },
 }
 
 // ==================== Request Handling ====================
@@ -585,7 +629,7 @@ async function handleRequest(request) {
     const params = request.data?.params || {}
 
     const handler = requestHandlers[request.type]
-    if (handler) {
+    if (handler && (await checkAPISupport(request.type, request.id))) {
       await handler(params, request.id)
     }
     else {

@@ -86,6 +86,30 @@ export interface EcdsaParams extends Algorithm {
   hash: AlgorithmIdentifier
 }
 
+export interface TokenInfo {
+  id?: string
+  Name?: string
+  Ticker?: string
+  Logo?: string
+  Denomination: number
+  processId: string
+  lastUpdated?: string | null
+  type?: 'asset' | 'collectible'
+  hidden?: boolean
+  balance?: string
+}
+
+export type Tier = 'Prime' | 'Edge' | 'Reserve' | 'Select' | 'Core'
+
+export interface ActiveTier {
+  tier: Tier
+  balance: string
+  rank: '' | number
+  progress: number
+  snapshotTimestamp: number
+  totalHolders: number
+}
+
 export interface NodeArweaveWalletConfig {
   port?: number // Port to listen on (default: 3737, use 0 for random)
 }
@@ -217,7 +241,7 @@ export class NodeArweaveWallet {
   }
 
   async getActivePublicKey(): Promise<string> {
-    return this.makeWalletRequest<string>('getPublicKey', {})
+    return this.makeWalletRequest<string>('getActivePublicKey', {})
   }
 
   async signature(
@@ -337,6 +361,18 @@ export class NodeArweaveWallet {
         return { id: itemId, raw: signedBuffer }
       }),
     )
+  }
+
+  async tokenBalance(id: string): Promise<string> {
+    return this.makeWalletRequest<string>('tokenBalance', { id })
+  }
+
+  async userTokens(options?: { fetchBalance?: boolean }): Promise<TokenInfo[]> {
+    return this.makeWalletRequest<TokenInfo[]>('userTokens', { options })
+  }
+
+  async getWanderTierInfo(): Promise<ActiveTier> {
+    return this.makeWalletRequest<ActiveTier>('getWanderTierInfo', {})
   }
 
   getDataItemSigner() {

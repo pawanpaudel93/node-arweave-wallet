@@ -16,6 +16,8 @@ const DEFAULT_PERMISSIONS: PermissionType[] = [
   'ACCESS_TOKENS',
 ]
 
+const tokenId = '7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4'
+
 describe('nodeArweaveWallet API Methods', () => {
   let arweaveWallet: NodeArweaveWallet
   let address: string
@@ -282,13 +284,86 @@ describe('nodeArweaveWallet API Methods', () => {
 
   describe('token Operations', () => {
     it('should add token', async () => {
-      const tokenId = '7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4'
       await expect(arweaveWallet.addToken(tokenId, 'asset')).rejects.toThrow()
     })
 
     it('should check if token is added', async () => {
-      const tokenId = '7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4'
-      await expect(arweaveWallet.addToken(tokenId, 'asset')).rejects.toThrow()
+      await expect(arweaveWallet.isTokenAdded(tokenId)).rejects.toThrow()
+    })
+
+    it('should get token balance', async () => {
+      try {
+        const balance = await arweaveWallet.tokenBalance(tokenId)
+        expect(typeof balance).toBe('string')
+        expect(balance.length).toBeGreaterThan(0)
+        // Should be a valid number string
+        expect(Number.isNaN(Number(balance))).toBe(false)
+      }
+      catch (error: any) {
+        // API might not be supported by the wallet
+        expect(error.message).toContain('not supported')
+      }
+    })
+
+    it('should get user tokens', async () => {
+      try {
+        const tokens = await arweaveWallet.userTokens({ fetchBalance: false })
+        expect(Array.isArray(tokens)).toBe(true)
+
+        if (tokens.length > 0) {
+          const token = tokens[0]
+          expect(token).toHaveProperty('Denomination')
+          expect(typeof token.Denomination).toBe('number')
+        }
+      }
+      catch (error: any) {
+        // API might not be supported by the wallet
+        expect(error.message).toContain('not supported')
+      }
+    })
+
+    it('should get user tokens with balance', async () => {
+      try {
+        const tokens = await arweaveWallet.userTokens({ fetchBalance: true })
+        expect(Array.isArray(tokens)).toBe(true)
+      }
+      catch (error: any) {
+        // API might not be supported by the wallet
+        expect(error.message).toContain('not supported')
+      }
+    })
+  })
+
+  describe('wander Tier Operations', () => {
+    it('should get Wander tier info', async () => {
+      try {
+        const tierInfo = await arweaveWallet.getWanderTierInfo()
+
+        expect(tierInfo).toBeDefined()
+        expect(tierInfo).toHaveProperty('tier')
+        expect(tierInfo).toHaveProperty('balance')
+        expect(tierInfo).toHaveProperty('rank')
+        expect(tierInfo).toHaveProperty('progress')
+        expect(tierInfo).toHaveProperty('snapshotTimestamp')
+        expect(tierInfo).toHaveProperty('totalHolders')
+
+        // Validate tier is one of the valid values
+        expect(['Prime', 'Edge', 'Reserve', 'Select', 'Core']).toContain(tierInfo.tier)
+
+        // Validate types
+        expect(typeof tierInfo.balance).toBe('string')
+        expect(typeof tierInfo.progress).toBe('number')
+        expect(typeof tierInfo.snapshotTimestamp).toBe('number')
+        expect(typeof tierInfo.totalHolders).toBe('number')
+
+        // Validate progress is between 0 and 1
+        expect(tierInfo.progress).toBeGreaterThanOrEqual(0)
+        expect(tierInfo.progress).toBeLessThanOrEqual(1)
+      }
+      catch (error: any) {
+        // API might not be supported by the wallet
+        expect(error.message).toContain('not supported')
+      }
     })
   })
 

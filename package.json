@@ -1,7 +1,7 @@
 {
   "name": "node-arweave-wallet",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "packageManager": "pnpm@10.17.1",
   "description": "_description_",
   "author": "Pawan Paudel <pawanpaudel93@gmail.com>",

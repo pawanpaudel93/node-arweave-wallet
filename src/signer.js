@@ -105,7 +105,6 @@ const dom = {
   status: null,
   walletInfo: null,
   address: null,
-  connectBtn: null,
   queueContainer: null,
   queueList: null,
   log: null,
@@ -116,7 +115,6 @@ function cacheDOMElements() {
   dom.status = document.getElementById('status')
   dom.walletInfo = document.getElementById('walletInfo')
   dom.address = document.getElementById('address')
-  dom.connectBtn = document.getElementById('connectBtn')
   dom.queueContainer = document.getElementById('queueContainer')
   dom.queueList = document.getElementById('queueList')
   dom.log = document.getElementById('log')
@@ -309,11 +307,8 @@ const requestHandlers = {
       await window.arweaveWallet.connect(params.permissions, params.appInfo, params.gateway)
       walletAddress = await window.arweaveWallet.getActiveAddress()
 
-      if (currentState !== States.CONNECTED) {
-        dom.walletInfo.style.display = 'block'
-        dom.address.textContent = walletAddress
-        dom.connectBtn.style.display = 'none'
-      }
+      dom.walletInfo.style.display = 'block'
+      dom.address.textContent = walletAddress
 
       await sendResponse(requestId, null)
       setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
@@ -324,7 +319,6 @@ const requestHandlers = {
       walletAddress = null // Clear wallet address on failure
       setState(States.DISCONNECTED, 'Connection cancelled or failed')
       log(`Connection failed: ${errorMsg}`, 'error')
-      dom.connectBtn.style.display = 'block'
       dom.walletInfo.style.display = 'none'
       throw err
     }

@@ -57,12 +57,14 @@
   "dependencies": {
     "@dha-team/arbundles": "catalog:",
     "arweave": "catalog:",
+    "kill-port": "catalog:",
     "nanoid": "catalog:"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:cli",
     "@antfu/ni": "catalog:cli",
     "@antfu/utils": "catalog:inlined",
+    "@types/kill-port": "catalog:",
     "@types/node": "catalog:types",
     "bumpp": "catalog:cli",
     "eslint": "catalog:cli",

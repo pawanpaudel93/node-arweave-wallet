@@ -9,6 +9,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { DataItem as ArBundlesDataItem } from '@dha-team/arbundles/node'
 import Arweave from 'arweave'
+import killPort from 'kill-port'
 import { nanoid } from 'nanoid'
 
 // ==================== Type Definitions ====================
@@ -112,6 +113,7 @@ export interface ActiveTier {
 
 export interface NodeArweaveWalletConfig {
   port?: number // Port to listen on (default: 3737, use 0 for random)
+  freePortIfInUse?: boolean // Automatically free port if it's already in use (default: false)
 }
 
 // ==================== Constants ====================
@@ -169,6 +171,7 @@ export class NodeArweaveWallet {
   constructor(config: NodeArweaveWalletConfig = {}) {
     this.config = {
       port: config.port ?? DEFAULT_PORT,
+      freePortIfInUse: config.freePortIfInUse ?? false,
     }
   }
 
@@ -188,32 +191,71 @@ export class NodeArweaveWallet {
    */
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.server = http.createServer((req, res) => this.handleRequest(req, res))
+      let hasRetried = false
 
-      this.server.listen(this.config.port, DEFAULT_HOST, () => {
-        const addr = this.server!.address() as any
-        this.port = addr.port
-        console.log(`\n🌐 Arweave wallet signer started at http://localhost:${this.port}`)
-        console.log('📱 Opening browser for wallet connection...\n')
+      const startServer = () => {
+        this.server = http.createServer((req, res) => this.handleRequest(req, res))
 
-        this.openBrowser(`http://localhost:${this.port}`)
-        this.startHeartbeatChecker()
+        this.server.listen(this.config.port, DEFAULT_HOST, () => {
+          const addr = this.server!.address() as any
+          this.port = addr.port
+          console.log(`\n🌐 Arweave wallet signer started at http://localhost:${this.port}`)
+          console.log('📱 Opening browser for wallet connection...\n')
 
-        resolve()
-      })
+          this.openBrowser(`http://localhost:${this.port}`)
+          this.startHeartbeatChecker()
 
-      this.server.on('error', (error: any) => {
-        if (error.code === 'EADDRINUSE') {
-          const errorMsg = `Port ${this.config.port} is already in use. `
-            + `Please either:\n`
-            + `  1. Close the application using port ${this.config.port}, or\n`
-            + `  2. Use a different port: new NodeArweaveWallet({ port: 0 }) for automatic selection`
-          reject(new Error(errorMsg))
-        }
-        else {
-          reject(error)
-        }
-      })
+          resolve()
+        })
+
+        this.server.on('error', async (error: any) => {
+          if (error.code === 'EADDRINUSE') {
+            // If port is 0 (random port), this shouldn't happen, but if it does, just reject
+            if (this.config.port === 0) {
+              reject(new Error('Failed to bind to a random port. This is unexpected.'))
+              return
+            }
+
+            if (this.config.freePortIfInUse && !hasRetried) {
+              hasRetried = true
+              console.log(`⚠️  Port ${this.config.port} is already in use. Attempting to free the port...`)
+              try {
+                await killPort(this.config.port!)
+                console.log(`✅ Port ${this.config.port} has been freed. Waiting for port to be released...`)
+                // Wait a bit for the port to be fully released by the OS
+                await new Promise(resolve => setTimeout(resolve, 1000))
+                console.log('🔄 Retrying server start...')
+                // Retry starting the server
+                startServer()
+              }
+              catch (freeError: any) {
+                const errorMsg = `Failed to free the port ${this.config.port}. `
+                  + `Please either:\n`
+                  + `  1. Manually close the application using port ${this.config.port}, or\n`
+                  + `  2. Use a different port: new NodeArweaveWallet({ port: 0 }) for automatic selection\n`
+                  + `Error: ${freeError.message}`
+                reject(new Error(errorMsg))
+              }
+            }
+            else if (this.config.freePortIfInUse && hasRetried) {
+              reject(new Error(`Failed to start server on port ${this.config.port} after retry. The port may still be in use.`))
+            }
+            else {
+              const errorMsg = `Port ${this.config.port} is already in use. `
+                + `Please either:\n`
+                + `  1. Close the application using port ${this.config.port}, or\n`
+                + `  2. Use a different port: new NodeArweaveWallet({ port: 0 }) for automatic selection, or\n`
+                + `  3. Enable automatic port freeing: new NodeArweaveWallet({ port: ${this.config.port}, freePortIfInUse: true })`
+              reject(new Error(errorMsg))
+            }
+          }
+          else {
+            reject(error)
+          }
+        })
+      }
+
+      startServer()
     })
   }
 

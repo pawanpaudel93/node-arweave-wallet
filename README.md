@@ -410,6 +410,14 @@ const wallet = new NodeArweaveWallet({ port: 8080 })
 const wallet = new NodeArweaveWallet({ port: 0 })
 ```
 
+### Automatic Port Freeing
+
+If your desired port is already in use, you can enable automatic port freeing to free it up and retry:
+
+```typescript
+const wallet = new NodeArweaveWallet({ freePortIfInUse: true })
+```
+
 ## 💡 Usage Examples
 
 ### CLI Tool Example

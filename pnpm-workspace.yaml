@@ -4,15 +4,15 @@ packages:
   - packages/*
   - examples/*
 
-ignoreWorkspaceRootCheck: true
-shellEmulator: true
-
 catalog:
   '@dha-team/arbundles': ^1.0.4
+  '@types/kill-port': ^2.0.3
   arweave: ^1.15.7
   html-minifier-terser: ^7.2.0
+  kill-port: ^2.0.1
   nanoid: ^5.1.6
   terser: ^5.44.0
+
 catalogs:
   cli:
     '@antfu/eslint-config': ^5.4.1
@@ -34,6 +34,11 @@ catalogs:
     yaml: ^2.8.1
   types:
     '@types/node': ^24.5.2
+
+ignoreWorkspaceRootCheck: true
+
 onlyBuiltDependencies:
   - esbuild
   - simple-git-hooks
+
+shellEmulator: true

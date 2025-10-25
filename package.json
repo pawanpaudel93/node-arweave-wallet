@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.0.2",
   "packageManager": "pnpm@10.17.1",
-  "description": "_description_",
+  "description": "Use Arweave browser wallets (Wander or any other compatible wallet) from Node.js applications. Perfect for CLI tools and scripts that need secure wallet interactions without exposing private keys.",
   "author": "Pawan Paudel <pawanpaudel93@gmail.com>",
   "license": "MIT",
   "funding": "https://github.com/sponsors/pawanpaudel93",
@@ -13,7 +13,23 @@
     "url": "git+https://github.com/pawanpaudel93/node-arweave-wallet.git"
   },
   "bugs": "https://github.com/pawanpaudel93/node-arweave-wallet/issues",
-  "keywords": [],
+  "keywords": [
+    "arweave",
+    "wallet",
+    "browser-wallet",
+    "wander",
+    "arweave-wallet",
+    "nodejs",
+    "cli",
+    "signing",
+    "transaction",
+    "aoconnect",
+    "permaweb",
+    "ans-104",
+    "data-item",
+    "crypto",
+    "blockchain"
+  ],
   "sideEffects": false,
   "exports": {
     ".": "./dist/index.js",

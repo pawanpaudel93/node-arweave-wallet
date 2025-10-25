@@ -143,6 +143,16 @@ function base64ToBuffer(base64: string): Uint8Array {
 }
 
 // ==================== NodeArweaveWallet Class ====================
+/**
+ * NodeArweaveWallet is a class that provides a local HTTP server for wallet interaction.
+ * It allows applications to interact with Arweave wallets browser extension.
+ *
+ * @example
+ * ```typescript
+ * const wallet = new NodeArweaveWallet()
+ * await wallet.initialize()
+ * ```
+ */
 export class NodeArweaveWallet {
   private server: http.Server | null = null
   private port: number = 0

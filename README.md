@@ -124,7 +124,7 @@ Closes the wallet connection and server. Optionally marks completion status.
 await wallet.close('success') // or 'failed'
 ```
 
-### Wallet Information
+### Wallet APIs
 
 #### `wallet.getActiveAddress()`
 
@@ -180,8 +180,6 @@ const config = await wallet.getArweaveConfig()
 // Returns: { host: "arweave.net", port: 443, protocol: "https" }
 ```
 
-### Transaction Signing
-
 #### `wallet.sign(transaction, options?)`
 
 Signs an Arweave transaction.
@@ -216,8 +214,6 @@ const result = await wallet.dispatch(tx)
 console.log('Transaction ID:', result.id)
 // Returns: { id: "transaction_id", type?: "BASE" | "BUNDLED" }
 ```
-
-### Data Item Signing (ANS-104)
 
 #### `wallet.signDataItem(dataItem, options?)`
 
@@ -256,26 +252,6 @@ const results = await wallet.batchSignDataItem([
 // Returns: Array<{ id: string, raw: Uint8Array }>
 ```
 
-#### `wallet.getDataItemSigner()` or `createDataItemSigner(wallet)`
-
-Creates a signer compatible with `@permaweb/aoconnect`.
-
-```typescript
-import { message } from '@permaweb/aoconnect'
-import { createDataItemSigner } from 'node-arweave-wallet'
-
-const signer = createDataItemSigner(wallet)
-
-const messageId = await message({
-  process: 'PROCESS_ID',
-  signer,
-  tags: [{ name: 'Action', value: 'Hello' }],
-  data: 'Hello from browser wallet!'
-})
-```
-
-### Encryption & Decryption
-
 #### `wallet.encrypt(data, options)`
 
 Encrypts data using the wallet's public key.
@@ -302,8 +278,6 @@ const decrypted = await wallet.decrypt(encrypted, {
 const text = new TextDecoder().decode(decrypted)
 // Returns: "Secret message"
 ```
-
-### Message Signing & Verification
 
 #### `wallet.signMessage(data, options?)`
 
@@ -358,6 +332,65 @@ const hash = await wallet.privateHash(data, {
 })
 
 // Returns: Uint8Array
+```
+
+#### `wallet.tokenBalance(id)`
+
+Gets the balance for a specific token.
+
+```typescript
+const balance = await wallet.tokenBalance('xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10')
+// Returns: string (balance as string representation)
+
+// Convert to number if needed
+const numericBalance = Number(balance)
+```
+
+#### `wallet.userTokens(options?)`
+
+Gets all tokens owned by the user.
+
+```typescript
+// Get tokens without balance
+const tokens = await wallet.userTokens({ fetchBalance: false })
+
+// Get tokens with balance
+const tokensWithBalance = await wallet.userTokens({ fetchBalance: true })
+
+// Returns: Array<TokenInfo>
+// TokenInfo: {
+//  id?: string
+//  Name?: string
+//  Ticker?: string
+//  Logo?: string
+//  Denomination: number
+//  processId: string
+//  lastUpdated?: string | null
+//  type?: 'asset' | 'collectible'
+//  hidden?: boolean
+//  balance?: string
+// }
+```
+
+#### `wallet.getWanderTierInfo()`
+
+Gets Wander wallet tier information (Wander wallet specific feature).
+
+```typescript
+const tierInfo = await wallet.getWanderTierInfo()
+
+// Returns: {
+//   tier: 'Prime' | 'Edge' | 'Reserve' | 'Select' | 'Core'
+//   balance: string
+//   rank: '' | number
+//   progress: number  // 0 to 1
+//   snapshotTimestamp: number
+//   totalHolders: number
+// }
+
+console.log(`Tier: ${tierInfo.tier}`)
+console.log(`Progress: ${(tierInfo.progress * 100).toFixed(2)}%`)
+console.log(`Total Holders: ${tierInfo.totalHolders}`)
 ```
 
 ## 🛠️ Configuration
@@ -485,6 +518,53 @@ async function batchUpload(files: string[]) {
   signed.forEach((item, i) => {
     console.log(`   ${i + 1}. ${item.id}`)
   })
+
+  await wallet.close('success')
+}
+```
+
+### Token Management Example
+
+```typescript
+import { NodeArweaveWallet } from 'node-arweave-wallet'
+
+async function manageTokens() {
+  const wallet = new NodeArweaveWallet()
+  await wallet.initialize()
+  await wallet.connect(['ACCESS_ADDRESS', 'ACCESS_TOKENS'])
+
+  // Add a token to the wallet
+  const tokenId = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' // $U token
+  await wallet.addToken(tokenId, 'asset')
+  console.log('✅ Token added!')
+
+  // Check if token is added
+  const isAdded = await wallet.isTokenAdded(tokenId)
+  console.log(`Token added: ${isAdded}`)
+
+  // Get token balance
+  const balance = await wallet.tokenBalance(tokenId)
+  console.log(`Balance: ${balance}`)
+
+  // Get all user tokens
+  const tokens = await wallet.userTokens({ fetchBalance: true })
+  console.log(`\n📊 Your tokens (${tokens.length}):`)
+  tokens.forEach((token) => {
+    console.log(`  • ${token.Name || token.Ticker || token.id}`)
+    console.log(`    Denomination: ${token.Denomination}`)
+  })
+
+  // Get Wander tier info (Wander wallet only)
+  try {
+    const tierInfo = await wallet.getWanderTierInfo()
+    console.log(`\n🏆 Wander Tier: ${tierInfo.tier}`)
+    console.log(`   Progress: ${(tierInfo.progress * 100).toFixed(2)}%`)
+    console.log(`   Rank: ${tierInfo.rank || 'N/A'}`)
+    console.log(`   Total Holders: ${tierInfo.totalHolders}`)
+  }
+  catch (error) {
+    console.log('Wander tier info not available')
+  }
 
   await wallet.close('success')
 }

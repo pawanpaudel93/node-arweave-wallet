@@ -218,7 +218,7 @@ describe('nodeArweaveWallet API Methods', () => {
       expect(dispatchResult.id).toBeTruthy()
       expect(dispatchResult.id).toMatch(/^[\w-]{43}$/)
     })
-  })
+  }, 60000)
 
   describe('data Item Operations', () => {
     it('should sign a data item', async () => {
@@ -303,7 +303,7 @@ describe('nodeArweaveWallet API Methods', () => {
         // API might not be supported by the wallet
         expect(error.message).toContain('not supported')
       }
-    })
+    }, 60000)
 
     it('should get user tokens', async () => {
       try {

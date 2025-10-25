@@ -640,22 +640,14 @@ function startEventStream() {
   if (eventSource)
     return
 
-  log('🚀 Connecting via EventSource...')
-
   eventSource = new EventSource('/events')
-
-  eventSource.onopen = () => {
-    log('✅ EventSource connected!', 'success')
-  }
 
   eventSource.onmessage = async (event) => {
     try {
       const data = JSON.parse(event.data)
 
       // Handle different event types
-      if (data.type === 'connected') {
-        log('Connected to server via EventSource')
-      } else if (data.type === 'completed') {
+      if (data.type === 'completed') {
         if (data.status === 'success') {
           log('✅ All operations completed successfully!', 'success')
           setState(States.COMPLETE, '✅ All done! You can safely close this window.')
@@ -677,11 +669,9 @@ function startEventStream() {
 
   eventSource.onerror = (error) => {
     console.error('EventSource error:', error)
-    log('Connection interrupted, reconnecting...', 'error')
 
     // EventSource automatically reconnects, but we can handle errors here
     if (eventSource.readyState === EventSource.CLOSED) {
-      log('EventSource closed, attempting to reconnect...', 'error')
       setTimeout(() => {
         eventSource = null
         startEventStream()

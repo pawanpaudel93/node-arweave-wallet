@@ -5,7 +5,6 @@ export default antfu(
   {
     type: 'lib',
     pnpm: true,
-    ignores: ['src/signer.html'],
   },
   {
     rules: {

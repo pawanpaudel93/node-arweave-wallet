@@ -83,7 +83,7 @@ await wallet.initialize()
 
 #### `wallet.connect(permissions, appInfo?, gateway?)`
 
-Programmatically connects to the wallet with specified permissions.
+Connects to the wallet with specified permissions, app info and gateway.
 
 ```typescript
 await wallet.connect(
@@ -456,8 +456,7 @@ async function deployFile(filePath: string) {
     console.log(`🔗 https://arweave.net/${result.id}`)
 
     await wallet.close('success')
-  }
-  catch (error) {
+  } catch (error) {
     console.error('❌ Error:', error.message)
     await wallet.close('failed')
     process.exit(1)
@@ -569,8 +568,7 @@ async function manageTokens() {
     console.log(`   Progress: ${(tierInfo.progress * 100).toFixed(2)}%`)
     console.log(`   Rank: ${tierInfo.rank || 'N/A'}`)
     console.log(`   Total Holders: ${tierInfo.totalHolders}`)
-  }
-  catch (error) {
+  } catch (error) {
     console.log('Wander tier info not available')
   }
 

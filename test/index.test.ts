@@ -29,7 +29,7 @@ describe('nodeArweaveWallet API Methods', () => {
     arweaveWallet = new NodeArweaveWallet({ freePort: true })
     await arweaveWallet.initialize()
 
-    // Connect wallet programmatically
+    // Connect wallet
     await arweaveWallet.connect(DEFAULT_PERMISSIONS)
 
     // Get address and public key for later tests
@@ -50,7 +50,7 @@ describe('nodeArweaveWallet API Methods', () => {
   })
 
   describe('connection and Permissions', () => {
-    it('should connect wallet programmatically', async () => {
+    it('should connect wallet', async () => {
       // Already connected in beforeAll, just verify it worked
       expect(address).toBeTruthy()
       expect(address).toMatch(/^[\w-]{43}$/)
@@ -298,8 +298,7 @@ describe('nodeArweaveWallet API Methods', () => {
         expect(balance.length).toBeGreaterThan(0)
         // Should be a valid number string
         expect(Number.isNaN(Number(balance))).toBe(false)
-      }
-      catch (error: any) {
+      } catch (error: any) {
         // API might not be supported by the wallet
         expect(error.message).toContain('not supported')
       }
@@ -315,8 +314,7 @@ describe('nodeArweaveWallet API Methods', () => {
           expect(token).toHaveProperty('Denomination')
           expect(typeof token.Denomination).toBe('number')
         }
-      }
-      catch (error: any) {
+      } catch (error: any) {
         // API might not be supported by the wallet
         expect(error.message).toContain('not supported')
       }
@@ -326,8 +324,7 @@ describe('nodeArweaveWallet API Methods', () => {
       try {
         const tokens = await arweaveWallet.userTokens({ fetchBalance: true })
         expect(Array.isArray(tokens)).toBe(true)
-      }
-      catch (error: any) {
+      } catch (error: any) {
         // API might not be supported by the wallet
         expect(error.message).toContain('not supported')
       }
@@ -359,8 +356,7 @@ describe('nodeArweaveWallet API Methods', () => {
         // Validate progress is between 0 and 1
         expect(tierInfo.progress).toBeGreaterThanOrEqual(0)
         expect(tierInfo.progress).toBeLessThanOrEqual(1)
-      }
-      catch (error: any) {
+      } catch (error: any) {
         // API might not be supported by the wallet
         expect(error.message).toContain('not supported')
       }

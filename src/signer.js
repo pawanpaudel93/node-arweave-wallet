@@ -16,19 +16,6 @@ const States = {
   COMPLETE: 'complete',
 }
 
-const DEFAULT_PERMISSIONS = [
-  'ACCESS_ADDRESS',
-  'ACCESS_ALL_ADDRESSES',
-  'SIGN_TRANSACTION',
-  'ENCRYPT',
-  'DECRYPT',
-  'SIGNATURE',
-  'ACCESS_PUBLIC_KEY',
-  'ACCESS_ARWEAVE_CONFIG',
-  'DISPATCH',
-  'ACCESS_TOKENS',
-]
-
 const OPERATION_ICONS = {
   connect: '🔗',
   sign: '✍️',
@@ -78,7 +65,6 @@ const OPERATION_LABELS = {
   getWanderTierInfo: 'Getting Wander tier info',
   tokenBalance: 'Getting token balance',
   userTokens: 'Getting user tokens',
-  getWanderTierInfo: 'Getting Wander tier info',
 }
 
 const MAX_LOG_ENTRIES = 50
@@ -94,6 +80,7 @@ let walletAddress = null
 let eventSource = null
 const requestQueue = new Map()
 
+// eslint-disable-next-line no-undef
 const arweave = Arweave.init({
   host: 'arweave.net',
   port: 443,
@@ -124,7 +111,8 @@ function cacheDOMElements() {
 // ==================== State Management ====================
 function setState(newState, message = '') {
   currentState = newState
-  if (!dom.status) return
+  if (!dom.status)
+    return
 
   const statusConfig = {
     [States.DISCONNECTED]: ['error', message || '⚠️ Not connected - Click "Connect Wallet" to continue'],
@@ -151,12 +139,11 @@ function getSystemTheme() {
 function initTheme() {
   // Check if user has a saved preference
   const savedTheme = localStorage.getItem('theme')
-  
+
   if (savedTheme) {
     // User has manually selected a theme
     setTheme(savedTheme, false)
-  }
-  else {
+  } else {
     // Use system preference
     const systemTheme = getSystemTheme()
     setTheme(systemTheme, false)
@@ -187,15 +174,6 @@ function setTheme(theme, logChange = true) {
   }
 }
 
-function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light'
-  const newTheme = currentTheme === 'light' ? 'dark' : 'light'
-  
-  // Mark that user has manually selected a theme
-  localStorage.setItem('theme-manual', 'true')
-  setTheme(newTheme)
-}
-
 // ==================== Request Queue Management ====================
 function addToQueue(id, type, status = 'pending') {
   requestQueue.set(id, { type, status, timestamp: Date.now() })
@@ -216,7 +194,8 @@ function removeFromQueue(id) {
 }
 
 function updateQueueUI() {
-  if (!dom.queueContainer || !dom.queueList) return
+  if (!dom.queueContainer || !dom.queueList)
+    return
 
   if (requestQueue.size === 0) {
     dom.queueContainer.classList.remove('active')
@@ -227,11 +206,11 @@ function updateQueueUI() {
 
   const statusOrder = { processing: 0, pending: 1, completed: 2 }
   const sortedQueue = Array.from(requestQueue.entries()).sort(
-    (a, b) => (statusOrder[a[1].status] || 3) - (statusOrder[b[1].status] || 3)
+    (a, b) => (statusOrder[a[1].status] || 3) - (statusOrder[b[1].status] || 3),
   )
 
   dom.queueList.innerHTML = sortedQueue.map(([id, item]) => `
-    <div class="queue-item">
+    <div class="queue-item" key=${id}>
       <span class="queue-icon">${OPERATION_ICONS[item.type] || '📦'}</span>
       <span class="queue-text">${OPERATION_LABELS[item.type] || item.type}</span>
       <span class="queue-status ${item.status}">${item.status}</span>
@@ -241,7 +220,8 @@ function updateQueueUI() {
 
 // ==================== Logging ====================
 function log(message, type = 'info') {
-  if (!dom.log) return
+  if (!dom.log)
+    return
 
   const entry = document.createElement('div')
   entry.className = `log-entry ${type}`
@@ -301,7 +281,7 @@ async function checkAPISupport(methodName, requestId) {
 const requestHandlers = {
   async connect(params, requestId) {
     setState(States.SIGNING, '✍️ Please approve the connection in your wallet...')
-    log('Programmatic connection request...')
+    log('Connection request...')
 
     try {
       await window.arweaveWallet.connect(params.permissions, params.appInfo, params.gateway)
@@ -312,9 +292,8 @@ const requestHandlers = {
 
       await sendResponse(requestId, null)
       setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
-      log(`Wallet connected programmatically: ${walletAddress}`, 'success')
-    }
-    catch (err) {
+      log(`Wallet connected: ${walletAddress}`, 'success')
+    } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       walletAddress = null // Clear wallet address on failure
       setState(States.DISCONNECTED, 'Connection cancelled or failed')
@@ -419,8 +398,7 @@ const requestHandlers = {
     let dataToEncrypt = params.data
     try {
       dataToEncrypt = base64ToUint8Array(params.data)
-    }
-    catch (e) {
+    } catch {
       // Keep as string if not base64
     }
 
@@ -453,8 +431,7 @@ const requestHandlers = {
     if (typeof dataToSign === 'string') {
       try {
         dataToSign = base64ToUint8Array(dataToSign)
-      }
-      catch (e) {
+      } catch {
         // Keep as string if not base64
       }
     }
@@ -538,8 +515,7 @@ const requestHandlers = {
       if (typeof data === 'string') {
         try {
           data = base64ToUint8Array(data)
-        }
-        catch (e) {
+        } catch {
           // Keep as string if not base64
         }
       }
@@ -594,16 +570,14 @@ async function handleRequest(request) {
     const handler = requestHandlers[request.type]
     if (handler && (await checkAPISupport(request.type, request.id))) {
       await handler(params, request.id)
-    }
-    else {
+    } else {
       log(`Unknown request type: ${request.type}`, 'error')
       await sendResponse(request.id, null, `Unknown request type: ${request.type}`)
     }
 
     updateQueueStatus(request.id, 'completed')
     setTimeout(() => removeFromQueue(request.id), QUEUE_CLEANUP_DELAY)
-  }
-  catch (error) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     setState(States.ERROR, `Operation failed: ${errorMessage}`)
     log(`Error: ${errorMessage}`, 'error')
@@ -614,8 +588,7 @@ async function handleRequest(request) {
     setTimeout(() => {
       if (currentState === States.ERROR && walletAddress) {
         setState(States.CONNECTED, '✅ Wallet connected - Ready for signing')
-      }
-      else if (currentState === States.ERROR && !walletAddress) {
+      } else if (currentState === States.ERROR && !walletAddress) {
         setState(States.DISCONNECTED, '⚠️ Not connected - Click "Connect Wallet" to continue')
       }
     }, ERROR_RESET_DELAY)
@@ -625,31 +598,31 @@ async function handleRequest(request) {
 // ==================== Auto-Close ====================
 function autoCloseWindow(status) {
   let countdown = Math.floor(AUTO_CLOSE_DELAY / 1000)
-  
+
   const updateCountdown = () => {
     if (countdown > 0) {
-      const message = status === 'success' 
+      const message = status === 'success'
         ? `✅ All done! Closing window in ${countdown} second${countdown !== 1 ? 's' : ''}...`
         : `Operation failed. Closing window in ${countdown} second${countdown !== 1 ? 's' : ''}...`
-      
+
       if (status === 'success') {
         setState(States.COMPLETE, message)
       } else {
         setState(States.ERROR, message)
       }
-      
+
       countdown--
       setTimeout(updateCountdown, 1000)
     } else {
       log('Closing window...', status === 'success' ? 'success' : 'error')
       window.close()
-      
+
       // Fallback message if window.close() doesn't work (some browsers block it)
       setTimeout(() => {
         const fallbackMessage = status === 'success'
           ? '✅ All done! You can close this window manually.'
           : 'Operation failed. You can close this window manually.'
-        
+
         if (status === 'success') {
           setState(States.COMPLETE, fallbackMessage)
         } else {
@@ -658,57 +631,54 @@ function autoCloseWindow(status) {
       }, 500)
     }
   }
-  
+
   updateCountdown()
 }
 
 // ==================== Server-Sent Events (SSE) ====================
 function startEventStream() {
-  if (eventSource) return
-  
+  if (eventSource)
+    return
+
   log('🚀 Connecting via EventSource...')
-  
+
   eventSource = new EventSource('/events')
-  
+
   eventSource.onopen = () => {
-    log('✅ EventSource connected - instant request delivery!', 'success')
+    log('✅ EventSource connected!', 'success')
   }
-  
+
   eventSource.onmessage = async (event) => {
     try {
       const data = JSON.parse(event.data)
-      
+
       // Handle different event types
       if (data.type === 'connected') {
         log('Connected to server via EventSource')
-      }
-      else if (data.type === 'completed') {
+      } else if (data.type === 'completed') {
         if (data.status === 'success') {
           log('✅ All operations completed successfully!', 'success')
           setState(States.COMPLETE, '✅ All done! You can safely close this window.')
           autoCloseWindow('success')
-        }
-        else {
+        } else {
           log('❌ Operation failed or cancelled', 'error')
           setState(States.ERROR, '❌ Operation failed. Check your terminal for details.')
           autoCloseWindow('failed')
         }
         eventSource.close()
-      }
-      else if (data.id && data.type) {
+      } else if (data.id && data.type) {
         // New request received - handle it immediately!
         await handleRequest(data)
       }
-    }
-    catch (error) {
+    } catch (error) {
       console.error('EventSource message error:', error)
     }
   }
-  
+
   eventSource.onerror = (error) => {
     console.error('EventSource error:', error)
     log('Connection interrupted, reconnecting...', 'error')
-    
+
     // EventSource automatically reconnects, but we can handle errors here
     if (eventSource.readyState === EventSource.CLOSED) {
       log('EventSource closed, attempting to reconnect...', 'error')

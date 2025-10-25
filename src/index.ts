@@ -227,8 +227,7 @@ export class NodeArweaveWallet {
                 console.log('🔄 Retrying server start...')
                 // Retry starting the server
                 startServer()
-              }
-              catch (freeError: any) {
+              } catch (freeError: any) {
                 const errorMsg = `Failed to free the port ${this.config.port}. `
                   + `Please either:\n`
                   + `  1. Manually close the application using port ${this.config.port}, or\n`
@@ -236,11 +235,9 @@ export class NodeArweaveWallet {
                   + `Error: ${freeError.message}`
                 reject(new Error(errorMsg))
               }
-            }
-            else if (this.config.freePort && hasRetried) {
+            } else if (this.config.freePort && hasRetried) {
               reject(new Error(`Failed to start server on port ${this.config.port} after retry. The port may still be in use.`))
-            }
-            else {
+            } else {
               const errorMsg = `Port ${this.config.port} is already in use. `
                 + `Please either:\n`
                 + `  1. Close the application using port ${this.config.port}, or\n`
@@ -248,8 +245,7 @@ export class NodeArweaveWallet {
                 + `  3. Enable automatic port freeing: new NodeArweaveWallet({ port: ${this.config.port}, freePort: true })`
               reject(new Error(errorMsg))
             }
-          }
-          else {
+          } else {
             reject(error)
           }
         })
@@ -865,8 +861,7 @@ export class NodeArweaveWallet {
     if (this.sseClient) {
       try {
         this.sseClient.end()
-      }
-      catch {
+      } catch {
         // Ignore errors on close
       }
       this.sseClient = null
@@ -925,8 +920,7 @@ export class NodeArweaveWallet {
 
     if (handler) {
       handler()
-    }
-    else {
+    } else {
       res.writeHead(404)
       res.end('Not found')
     }
@@ -994,8 +988,7 @@ export class NodeArweaveWallet {
     const event = JSON.stringify({ id, type, data })
     try {
       this.sseClient.write(`data: ${event}\n\n`)
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Failed to send SSE request:', error)
       this.sseClient = null
     }
@@ -1008,8 +1001,7 @@ export class NodeArweaveWallet {
     const event = JSON.stringify({ type: 'completed', status })
     try {
       this.sseClient.write(`data: ${event}\n\n`)
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Failed to send SSE completion:', error)
       this.sseClient = null
     }
@@ -1024,16 +1016,14 @@ export class NodeArweaveWallet {
         if (pending) {
           if (response.error) {
             pending.reject(new Error(response.error))
-          }
-          else {
+          } else {
             pending.resolve(response.result)
           }
           this.pendingRequests.delete(response.id)
         }
 
         this.sendJSON(res, 200, { success: true })
-      }
-      catch (error: any) {
+      } catch (error: any) {
         this.sendJSON(res, 400, { error: error.message })
       }
     })

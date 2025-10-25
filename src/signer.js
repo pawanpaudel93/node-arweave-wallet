@@ -299,38 +299,6 @@ async function checkAPISupport(methodName, requestId) {
   return true
 }
 
-// ==================== Wallet Connection ====================
-async function connectWallet() {
-  try {
-    if (!window.arweaveWallet) {
-      setState(States.ERROR, 'No Arweave wallet found. Please install or any other compatible wallet.')
-      log('No wallet extension found', 'error')
-      return
-    }
-
-    setState(States.CONNECTING, 'Requesting wallet connection...')
-    log('Requesting wallet connection...')
-
-    await window.arweaveWallet.connect(DEFAULT_PERMISSIONS)
-    walletAddress = await window.arweaveWallet.getActiveAddress()
-
-    setState(States.CONNECTED, '✅ Wallet connected successfully!')
-    dom.walletInfo.style.display = 'block'
-    dom.address.textContent = walletAddress
-    dom.connectBtn.style.display = 'none'
-
-    log(`Connected: ${walletAddress}`, 'success')
-  }
-  catch (error) {
-    const errorMessage = error?.message || String(error) || 'User rejected wallet connection'
-    walletAddress = null // Clear wallet address on failure
-    setState(States.DISCONNECTED, `Connection cancelled or failed`)
-    log(`Connection failed: ${errorMessage}`, 'error')
-    dom.connectBtn.style.display = 'block'
-    dom.walletInfo.style.display = 'none'
-  }
-}
-
 // ==================== Request Handlers ====================
 const requestHandlers = {
   async connect(params, requestId) {
@@ -364,6 +332,7 @@ const requestHandlers = {
 
   async getActiveAddress(params, requestId) {
     log('Providing wallet address...')
+    const walletAddress = await window.arweaveWallet.getActiveAddress()
     await sendResponse(requestId, walletAddress)
     log('Address sent successfully', 'success')
   },
@@ -765,21 +734,9 @@ window.addEventListener('load', () => {
 
   setTimeout(() => {
     if (window.arweaveWallet) {
-      window.arweaveWallet.getActiveAddress()
-        .then((address) => {
-          if (address) {
-            log('Wallet already connected, attempting auto-connect...')
-            connectWallet()
-          }
-          else {
-            log('Ready to connect wallet (click button or wait for programmatic connect)')
-          }
-        })
-        .catch(() => {
-          log('Ready to connect wallet (click button or wait for programmatic connect)')
-        })
-    }
-    else {
+      log('Wallet extension detected. Waiting for connection request...')
+      setState(States.DISCONNECTED, '⏳ Waiting for connection request...')
+    } else {
       setState(States.ERROR, 'No Arweave wallet extension detected<br><small>Please install Wander or any other compatible wallet and refresh this page</small>')
       log('Please install Wander or any other compatible wallet extension', 'error')
     }

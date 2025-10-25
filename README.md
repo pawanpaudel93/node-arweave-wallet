@@ -415,7 +415,7 @@ const wallet = new NodeArweaveWallet({ port: 0 })
 If your desired port is already in use, you can enable automatic port freeing to free it up and retry:
 
 ```typescript
-const wallet = new NodeArweaveWallet({ freePortIfInUse: true })
+const wallet = new NodeArweaveWallet({ freePort: true })
 ```
 
 ## 💡 Usage Examples

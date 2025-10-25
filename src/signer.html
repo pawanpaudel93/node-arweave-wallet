@@ -398,6 +398,16 @@
             transition: color 0.3s ease;
         }
 
+        .instructions code {
+            background: var(--queue-item-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: var(--text-primary);
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
         /* Mobile responsiveness */
         @media (max-width: 640px) {
             body {
@@ -488,12 +498,10 @@
         <div class="instructions">
             <strong>📋 How to Use:</strong><br>
             1. Ensure you have <a href="https://www.wander.app" target="_blank" rel="noopener noreferrer">Wander</a> or any arweave wallet extension installed<br>
-            2. Click "Connect Wallet" below or use the programmatic connect method<br>
+            2. Call <code>await wallet.connect()</code> in your Node.js application<br>
             3. Approve the requested permissions in your wallet<br>
             4. Keep this window open while signing transactions
         </div>
-
-        <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
 
         <div class="log" id="log"></div>
     </div>

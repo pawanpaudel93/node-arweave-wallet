@@ -113,7 +113,7 @@ export interface ActiveTier {
 
 export interface NodeArweaveWalletConfig {
   port?: number // Port to listen on (default: 3737, use 0 for random)
-  freePortIfInUse?: boolean // Automatically free port if it's already in use (default: false)
+  freePort?: boolean // Automatically free port if it's already in use (default: false)
 }
 
 // ==================== Constants ====================
@@ -171,7 +171,7 @@ export class NodeArweaveWallet {
   constructor(config: NodeArweaveWalletConfig = {}) {
     this.config = {
       port: config.port ?? DEFAULT_PORT,
-      freePortIfInUse: config.freePortIfInUse ?? false,
+      freePort: config.freePort ?? false,
     }
   }
 
@@ -216,7 +216,7 @@ export class NodeArweaveWallet {
               return
             }
 
-            if (this.config.freePortIfInUse && !hasRetried) {
+            if (this.config.freePort && !hasRetried) {
               hasRetried = true
               console.log(`⚠️  Port ${this.config.port} is already in use. Attempting to free the port...`)
               try {
@@ -237,7 +237,7 @@ export class NodeArweaveWallet {
                 reject(new Error(errorMsg))
               }
             }
-            else if (this.config.freePortIfInUse && hasRetried) {
+            else if (this.config.freePort && hasRetried) {
               reject(new Error(`Failed to start server on port ${this.config.port} after retry. The port may still be in use.`))
             }
             else {
@@ -245,7 +245,7 @@ export class NodeArweaveWallet {
                 + `Please either:\n`
                 + `  1. Close the application using port ${this.config.port}, or\n`
                 + `  2. Use a different port: new NodeArweaveWallet({ port: 0 }) for automatic selection, or\n`
-                + `  3. Enable automatic port freeing: new NodeArweaveWallet({ port: ${this.config.port}, freePortIfInUse: true })`
+                + `  3. Enable automatic port freeing: new NodeArweaveWallet({ port: ${this.config.port}, freePort: true })`
               reject(new Error(errorMsg))
             }
           }

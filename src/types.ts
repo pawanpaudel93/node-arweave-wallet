@@ -130,6 +130,10 @@ export interface ActiveTier {
 }
 
 export interface NodeArweaveWalletConfig {
-  port?: number // Port to listen on (default: 3737, use 0 for random)
-  freePort?: boolean // Automatically free port if it's already in use (default: false)
+  /** Port to listen on (default: 3737, use 0 for random) */
+  port?: number
+  /** Automatically free port if it's already in use (default: false) */
+  freePort?: boolean
+  /** Timeout for wallet requests in milliseconds (default: 300000 = 5 minutes) */
+  requestTimeout?: number
 }

@@ -66,7 +66,9 @@ Creates a new wallet instance.
 
 ```typescript
 const wallet = new NodeArweaveWallet({
-  port: 3737, // Optional: port number (default: 3737, use 0 for random)
+  port: 3737,              // Optional: port number (default: 3737, use 0 for random)
+  freePort: false,         // Optional: auto-free port if in use (default: false)
+  requestTimeout: 300000,  // Optional: request timeout in ms (default: 5 minutes)
 })
 ```
 
@@ -412,6 +414,34 @@ If your desired port is already in use, you can enable automatic port freeing to
 const wallet = new NodeArweaveWallet({ freePort: true })
 ```
 
+### Request Timeout Configuration
+
+You can configure how long the wallet will wait for user responses before timing out. This is useful if you need more time to review transactions or if you want faster failures:
+
+```typescript
+// Default timeout (5 minutes = 300000ms)
+const wallet = new NodeArweaveWallet()
+
+// Custom timeout (10 minutes)
+const wallet = new NodeArweaveWallet({ 
+  requestTimeout: 600000 // 10 minutes in milliseconds
+})
+
+// Shorter timeout (1 minute) for faster failures
+const wallet = new NodeArweaveWallet({ 
+  requestTimeout: 60000 // 1 minute in milliseconds
+})
+
+// All options together
+const wallet = new NodeArweaveWallet({
+  port: 3737,
+  freePort: true,
+  requestTimeout: 300000, // 5 minutes
+})
+```
+
+**Note:** The timeout applies to individual wallet operations (signing, encrypting, etc.). If the user doesn't respond within this time, the operation will fail with a timeout error.
+
 ## 💡 Usage Examples
 
 ### CLI Tool Example
@@ -604,9 +634,17 @@ The URL will be printed to the console. Open it manually:
 http://localhost:3737
 ```
 
-### Connection Timeout
+### Request Timeout
 
-Keep the browser tab open while signing transactions. The package has a generous 5-minute timeout, but closing the tab will interrupt operations.
+Keep the browser tab open while signing transactions. The package has a default 5-minute timeout for each wallet operation (configurable via `requestTimeout` option). If you need more time to review transactions, increase the timeout:
+
+```typescript
+const wallet = new NodeArweaveWallet({ 
+  requestTimeout: 600000 // 10 minutes
+})
+```
+
+**Note:** Closing the browser tab will immediately interrupt operations regardless of the timeout setting.
 
 ## 📄 License
 

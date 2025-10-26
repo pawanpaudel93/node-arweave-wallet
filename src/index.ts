@@ -34,7 +34,7 @@ import {
   BROWSER_TIMEOUT,
   DEFAULT_HOST,
   DEFAULT_PORT,
-  REQUEST_TIMEOUT,
+  DEFAULT_REQUEST_TIMEOUT,
   SHUTDOWN_DELAY,
 } from './constants'
 import { base64ToBuffer, bufferToBase64 } from './utils'
@@ -64,6 +64,7 @@ export class NodeArweaveWallet {
     this.config = {
       port: config.port ?? DEFAULT_PORT,
       freePort: config.freePort ?? false,
+      requestTimeout: config.requestTimeout ?? DEFAULT_REQUEST_TIMEOUT,
     }
   }
 
@@ -932,8 +933,8 @@ export class NodeArweaveWallet {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id)
-        reject(new Error(`Timeout waiting for ${type}`))
-      }, REQUEST_TIMEOUT)
+        reject(new Error(`Timeout waiting for ${type} after ${this.config.requestTimeout! / 1000} seconds`))
+      }, this.config.requestTimeout!)
 
       this.pendingRequests.set(id, {
         resolve: (value: T) => {

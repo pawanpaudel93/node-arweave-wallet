@@ -91,6 +91,16 @@ Starts the local server and opens the browser for wallet connection.
 await wallet.initialize()
 ```
 
+#### `wallet.close(status?)`
+
+Closes the wallet connection and server. Optionally marks completion status.
+
+```typescript
+await wallet.close('success') // or 'failed'
+```
+
+### Wallet APIs
+
 #### `wallet.connect(permissions, appInfo?, gateway?)`
 
 Connects to the wallet with specified permissions, app info and gateway.
@@ -122,16 +132,6 @@ Disconnects from the wallet.
 ```typescript
 await wallet.disconnect()
 ```
-
-#### `wallet.close(status?)`
-
-Closes the wallet connection and server. Optionally marks completion status.
-
-```typescript
-await wallet.close('success') // or 'failed'
-```
-
-### Wallet APIs
 
 #### `wallet.getActiveAddress()`
 

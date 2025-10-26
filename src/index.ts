@@ -19,15 +19,16 @@ import type {
   TokenType,
 } from './types'
 import { Buffer } from 'node:buffer'
-import { exec } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import http from 'node:http'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { DataItem as ArBundlesDataItem } from '@dha-team/arbundles/node'
 import killPort from 'kill-port'
 import { nanoid } from 'nanoid'
+import open, { apps } from 'open'
 import {
   arweave,
   BROWSER_READY_DELAY,
@@ -65,6 +66,8 @@ export class NodeArweaveWallet {
       port: config.port ?? DEFAULT_PORT,
       freePort: config.freePort ?? false,
       requestTimeout: config.requestTimeout ?? DEFAULT_REQUEST_TIMEOUT,
+      browser: config.browser,
+      browserProfile: config.browserProfile,
     }
   }
 
@@ -89,13 +92,13 @@ export class NodeArweaveWallet {
       const startServer = () => {
         this.server = http.createServer((req, res) => this.handleRequest(req, res))
 
-        this.server.listen(this.config.port, DEFAULT_HOST, () => {
+        this.server.listen(this.config.port, DEFAULT_HOST, async () => {
           const addr = this.server!.address() as any
           this.port = addr.port
           console.log(`\n🌐 Arweave wallet signer started at http://localhost:${this.port}`)
           console.log('📱 Opening browser for wallet connection...\n')
 
-          this.openBrowser(`http://localhost:${this.port}`)
+          await this.openBrowser(`http://localhost:${this.port}`)
 
           resolve()
         })
@@ -168,7 +171,7 @@ export class NodeArweaveWallet {
    * ```typescript
    * await wallet.connect(
    *   ['ACCESS_ADDRESS', 'SIGN_TRANSACTION', 'DISPATCH'],
-   *   { name: 'My App', logo: 'https://example.com/logo.png' }
+   *   { name: 'My App', logo: 'https://arweave.net/azW8iYR5A6bPXyS6WpMmw-qLTXNleS-vv4LJDR9Hf-s' }
    * )
    * ```
    */
@@ -977,20 +980,126 @@ export class NodeArweaveWallet {
     }
   }
 
-  private openBrowser(url: string): void {
-    const commands: Record<string, string> = {
-      darwin: `open "${url}"`,
-      win32: `start "${url}"`,
+  private async openBrowser(url: string): Promise<void> {
+    if (this.config.browser === false) {
+      console.log(`\n🌐 Browser URL: ${url}`)
+      console.log('(Auto-open disabled - please open manually)\n')
+      return
     }
 
-    const command = commands[process.platform] || `xdg-open "${url}"`
+    try {
+      if (this.config.browser) {
+        const openOptions: any = { app: { name: this.getBrowserName(this.config.browser) } }
 
-    exec(command, error => {
-      if (error) {
-        console.error('Failed to open browser automatically:', error.message)
-        console.log(`Please open this URL manually: ${url}`)
+        if (this.config.browserProfile && this.config.browser !== 'opera') {
+          openOptions.app.arguments = this.getBrowserProfileArgs(this.config.browser)
+          openOptions.newInstance = true
+        }
+
+        await open(url, openOptions)
+      } else {
+        await open(url)
       }
-    })
+    } catch (error: any) {
+      console.error('Failed to open browser automatically:', error.message)
+      console.log(`Please open this URL manually: ${url}`)
+    }
+  }
+
+  private getBrowserName(browser: string): string | readonly string[] {
+    const browserLower = browser.toLowerCase()
+    const browserMap: Record<string, string | readonly string[]> = {
+      chrome: apps.chrome,
+      firefox: apps.firefox,
+      edge: apps.edge,
+      brave: apps.brave,
+    }
+    return browserMap[browserLower] ?? browser
+  }
+
+  private getBrowserDataPath(browser: string): string | null {
+    const platform = process.platform
+    const home = homedir()
+
+    const paths: Record<string, Record<string, string>> = {
+      chrome: {
+        darwin: join(home, 'Library/Application Support/Google/Chrome'),
+        win32: join(home, 'AppData/Local/Google/Chrome/User Data'),
+        linux: join(home, '.config/google-chrome'),
+      },
+      brave: {
+        darwin: join(home, 'Library/Application Support/BraveSoftware/Brave-Browser'),
+        win32: join(home, 'AppData/Local/BraveSoftware/Brave-Browser/User Data'),
+        linux: join(home, '.config/BraveSoftware/Brave-Browser'),
+      },
+      edge: {
+        darwin: join(home, 'Library/Application Support/Microsoft Edge'),
+        win32: join(home, 'AppData/Local/Microsoft/Edge/User Data'),
+        linux: join(home, '.config/microsoft-edge'),
+      },
+      vivaldi: {
+        darwin: join(home, 'Library/Application Support/Vivaldi'),
+        win32: join(home, 'AppData/Local/Vivaldi/User Data'),
+        linux: join(home, '.config/vivaldi'),
+      },
+    }
+
+    return paths[browser]?.[platform] ?? null
+  }
+
+  private resolveProfileName(browser: string, profileName: string): string {
+    const browserLower = browser.toLowerCase()
+
+    // Only Chromium-based browsers support profile directory resolution
+    if (!['chrome', 'edge', 'brave', 'opera', 'vivaldi'].includes(browserLower)) {
+      return profileName
+    }
+
+    try {
+      const basePath = this.getBrowserDataPath(browserLower)
+      if (!basePath || !existsSync(basePath)) {
+        return profileName
+      }
+
+      const localStatePath = join(basePath, 'Local State')
+      if (!existsSync(localStatePath)) {
+        return profileName
+      }
+
+      const localState = JSON.parse(readFileSync(localStatePath, 'utf-8'))
+      const profileInfo = localState?.profile?.info_cache
+
+      if (!profileInfo) return profileName
+
+      // Search for matching profile by name or gaia_name
+      for (const [dirName, info] of Object.entries(profileInfo)) {
+        const profileData = info as any
+        if (profileData.name === profileName || profileData.gaia_name === profileName) {
+          return dirName
+        }
+      }
+    } catch {
+      // Silently fall back to original profile name on any error
+    }
+
+    return profileName
+  }
+
+  private getBrowserProfileArgs(browser: string): string[] {
+    const browserLower = browser.toLowerCase()
+    const profile = this.config.browserProfile
+
+    if (!profile) return []
+
+    const resolvedProfile = this.resolveProfileName(browserLower, profile)
+
+    // Firefox uses different profile arguments
+    if (browserLower === 'firefox' || browserLower === 'zen') {
+      return ['-P', resolvedProfile]
+    }
+
+    // Chromium-based browsers (Chrome, Edge, Brave) and others
+    return [`--profile-directory=${resolvedProfile}`]
   }
 
   private getSignerHTML(): string {

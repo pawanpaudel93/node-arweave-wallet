@@ -11,7 +11,7 @@ export default defineConfig({
   minify: true,
   onSuccess: async () => {
     // Create dist directory
-    mkdirSync('dist', { recursive: true })
+    mkdirSync('dist/signer', { recursive: true })
 
     // Minify and copy signer.js
     const jsContent = readFileSync(join('src', 'signer', 'signer.js'), 'utf-8')
@@ -34,7 +34,7 @@ export default defineConfig({
     })
 
     if (minifiedJS.code) {
-      writeFileSync(join('dist', 'signer.js'), minifiedJS.code, 'utf-8')
+      writeFileSync(join('dist', 'signer', 'signer.js'), minifiedJS.code, 'utf-8')
       console.log(
         `✓ Minified signer.js: ${jsContent.length} → ${minifiedJS.code.length} bytes (${((1 - minifiedJS.code.length / jsContent.length) * 100).toFixed(1)}% reduction)`,
       )
@@ -53,7 +53,7 @@ export default defineConfig({
       minifyJS: true,
     })
 
-    writeFileSync(join('dist', 'signer.html'), minifiedHTML, 'utf-8')
+    writeFileSync(join('dist', 'signer', 'signer.html'), minifiedHTML, 'utf-8')
     console.log(
       `✓ Minified signer.html: ${htmlContent.length} → ${minifiedHTML.length} bytes (${((1 - minifiedHTML.length / htmlContent.length) * 100).toFixed(1)}% reduction)`,
     )

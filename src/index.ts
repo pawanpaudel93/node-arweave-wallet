@@ -34,8 +34,6 @@ import {
   BROWSER_TIMEOUT,
   DEFAULT_HOST,
   DEFAULT_PORT,
-  HEARTBEAT_CHECK_INTERVAL,
-  HEARTBEAT_TIMEOUT,
   REQUEST_TIMEOUT,
   SHUTDOWN_DELAY,
 } from './constants'
@@ -60,8 +58,6 @@ export class NodeArweaveWallet {
 
   private address: string | null = null
   private browserConnected = false
-  private lastHeartbeat = Date.now()
-  private heartbeatInterval: NodeJS.Timeout | null = null
   private complete = false
 
   constructor(config: NodeArweaveWalletConfig = {}) {
@@ -99,7 +95,6 @@ export class NodeArweaveWallet {
           console.log('📱 Opening browser for wallet connection...\n')
 
           this.openBrowser(`http://localhost:${this.port}`)
-          this.startHeartbeatChecker()
 
           resolve()
         })
@@ -760,11 +755,6 @@ export class NodeArweaveWallet {
       this.markComplete(status)
     }
 
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval)
-      this.heartbeatInterval = null
-    }
-
     await new Promise(resolve => setTimeout(resolve, SHUTDOWN_DELAY))
 
     // Close SSE connection if open
@@ -784,31 +774,6 @@ export class NodeArweaveWallet {
   }
 
   // ==================== Private Methods ====================
-  private startHeartbeatChecker(): void {
-    this.heartbeatInterval = setInterval(() => {
-      const timeSinceLastHeartbeat = Date.now() - this.lastHeartbeat
-
-      // Only check if we have pending requests - no need to check if nothing is pending
-      if (this.browserConnected && this.pendingRequests.size > 0 && timeSinceLastHeartbeat > HEARTBEAT_TIMEOUT) {
-        const timeoutMinutes = Math.floor(HEARTBEAT_TIMEOUT / 60000)
-        console.log(`\n⚠️  Browser connection timeout - no response for ${timeoutMinutes} minutes`)
-        console.log('💡 The browser tab may have been closed.')
-        console.log('💡 Tip: Keep the browser window open while signing transactions.')
-        this.browserConnected = false
-
-        // Reject pending requests with a helpful error message
-        for (const [id, pending] of this.pendingRequests.entries()) {
-          pending.reject(
-            new Error(
-              `Browser connection timeout after ${timeoutMinutes} minutes. ` +
-                'Please ensure the browser window stays open during signing operations.',
-            ),
-          )
-          this.pendingRequests.delete(id)
-        }
-      }
-    }, HEARTBEAT_CHECK_INTERVAL)
-  }
 
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
     this.setCORSHeaders(res)
@@ -857,7 +822,6 @@ export class NodeArweaveWallet {
     })
 
     // Mark browser as connected
-    this.lastHeartbeat = Date.now()
     if (!this.browserConnected) {
       this.browserConnected = true
     }
@@ -877,7 +841,7 @@ export class NodeArweaveWallet {
       }
     }
 
-    // Handle client disconnect
+    // Handle client disconnect - this fires immediately when browser tab closes
     res.on('close', () => {
       if (this.sseClient === res) {
         this.sseClient = null
@@ -950,14 +914,13 @@ export class NodeArweaveWallet {
 
   private async waitForBrowserConnection(timeout = BROWSER_TIMEOUT): Promise<void> {
     const startTime = Date.now()
-    const initialHeartbeat = this.lastHeartbeat
     const checkInterval = 100 // Check every 100ms
 
-    while (this.lastHeartbeat === initialHeartbeat && Date.now() - startTime < timeout) {
+    while (!this.browserConnected && Date.now() - startTime < timeout) {
       await new Promise(resolve => setTimeout(resolve, checkInterval))
     }
 
-    if (this.lastHeartbeat === initialHeartbeat) {
+    if (!this.browserConnected) {
       throw new Error('Browser page not responding. Please ensure the browser window is open.')
     }
 
@@ -1033,8 +996,8 @@ export class NodeArweaveWallet {
     const __filename = fileURLToPath(import.meta.url)
     const __dirname = dirname(__filename)
 
-    const htmlPath = join(__dirname, 'signer.html')
-    const jsPath = join(__dirname, 'signer.js')
+    const htmlPath = join(__dirname, 'signer', 'signer.html')
+    const jsPath = join(__dirname, 'signer', 'signer.js')
 
     const html = readFileSync(htmlPath, 'utf-8')
     const js = readFileSync(jsPath, 'utf-8')

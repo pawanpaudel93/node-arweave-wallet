@@ -70,7 +70,6 @@ const OPERATION_LABELS = {
 const MAX_LOG_ENTRIES = 50
 const QUEUE_CLEANUP_DELAY = 2000
 const ERROR_RESET_DELAY = 3000
-const WALLET_INJECTION_DELAY = 500
 const POLL_ERROR_DELAY = 1000
 const AUTO_CLOSE_DELAY = 5000
 
@@ -111,8 +110,7 @@ function cacheDOMElements() {
 // ==================== State Management ====================
 function setState(newState, message = '') {
   currentState = newState
-  if (!dom.status)
-    return
+  if (!dom.status) return
 
   const statusConfig = {
     [States.DISCONNECTED]: ['error', message || '⚠️ Not connected - Click "Connect Wallet" to continue'],
@@ -152,7 +150,7 @@ function initTheme() {
 
   // Listen for system theme changes (only if user hasn't manually set a theme)
   if (window.matchMedia) {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
       // Only auto-switch if user hasn't manually set a preference
       if (!localStorage.getItem('theme-manual')) {
         const newTheme = e.matches ? 'dark' : 'light'
@@ -194,8 +192,7 @@ function removeFromQueue(id) {
 }
 
 function updateQueueUI() {
-  if (!dom.queueContainer || !dom.queueList)
-    return
+  if (!dom.queueContainer || !dom.queueList) return
 
   if (requestQueue.size === 0) {
     dom.queueContainer.classList.remove('active')
@@ -209,19 +206,22 @@ function updateQueueUI() {
     (a, b) => (statusOrder[a[1].status] || 3) - (statusOrder[b[1].status] || 3),
   )
 
-  dom.queueList.innerHTML = sortedQueue.map(([id, item]) => `
+  dom.queueList.innerHTML = sortedQueue
+    .map(
+      ([id, item]) => `
     <div class="queue-item" key=${id}>
       <span class="queue-icon">${OPERATION_ICONS[item.type] || '📦'}</span>
       <span class="queue-text">${OPERATION_LABELS[item.type] || item.type}</span>
       <span class="queue-status ${item.status}">${item.status}</span>
     </div>
-  `).join('')
+  `,
+    )
+    .join('')
 }
 
 // ==================== Logging ====================
 function log(message, type = 'info') {
-  if (!dom.log)
-    return
+  if (!dom.log) return
 
   const entry = document.createElement('div')
   entry.className = `log-entry ${type}`
@@ -436,12 +436,15 @@ const requestHandlers = {
       }
     }
 
-    const signedDataItem = await window.arweaveWallet.signDataItem({
-      data: dataToSign,
-      tags: params.tags || [],
-      target: params.target,
-      anchor: params.anchor,
-    }, params.options)
+    const signedDataItem = await window.arweaveWallet.signDataItem(
+      {
+        data: dataToSign,
+        tags: params.tags || [],
+        target: params.target,
+        anchor: params.anchor,
+      },
+      params.options,
+    )
 
     const signedBase64 = uint8ArrayToBase64(new Uint8Array(signedDataItem))
 
@@ -495,12 +498,7 @@ const requestHandlers = {
 
     const bytes = base64ToUint8Array(params.data)
     const sigBytes = base64ToUint8Array(params.signature)
-    const isValid = await window.arweaveWallet.verifyMessage(
-      bytes,
-      sigBytes,
-      params.publicKey,
-      params.options,
-    )
+    const isValid = await window.arweaveWallet.verifyMessage(bytes, sigBytes, params.publicKey, params.options)
 
     await sendResponse(requestId, isValid)
     log(`Message verification: ${isValid ? 'valid' : 'invalid'}`, 'success')
@@ -510,7 +508,7 @@ const requestHandlers = {
     setState(States.SIGNING, '✍️ Please sign multiple data items in your wallet...')
     log(`Batch signing request for ${params.dataItems.length} items...`)
 
-    const items = params.dataItems.map((item) => {
+    const items = params.dataItems.map(item => {
       let data = item.data
       if (typeof data === 'string') {
         try {
@@ -601,9 +599,10 @@ function autoCloseWindow(status) {
 
   const updateCountdown = () => {
     if (countdown > 0) {
-      const message = status === 'success'
-        ? `✅ All done! Closing window in ${countdown} second${countdown !== 1 ? 's' : ''}...`
-        : `Operation failed. Closing window in ${countdown} second${countdown !== 1 ? 's' : ''}...`
+      const message =
+        status === 'success'
+          ? `✅ All done! Closing window in ${countdown} second${countdown !== 1 ? 's' : ''}...`
+          : `Operation failed. Closing window in ${countdown} second${countdown !== 1 ? 's' : ''}...`
 
       if (status === 'success') {
         setState(States.COMPLETE, message)
@@ -619,9 +618,10 @@ function autoCloseWindow(status) {
 
       // Fallback message if window.close() doesn't work (some browsers block it)
       setTimeout(() => {
-        const fallbackMessage = status === 'success'
-          ? '✅ All done! You can close this window manually.'
-          : 'Operation failed. You can close this window manually.'
+        const fallbackMessage =
+          status === 'success'
+            ? '✅ All done! You can close this window manually.'
+            : 'Operation failed. You can close this window manually.'
 
         if (status === 'success') {
           setState(States.COMPLETE, fallbackMessage)
@@ -637,12 +637,11 @@ function autoCloseWindow(status) {
 
 // ==================== Server-Sent Events (SSE) ====================
 function startEventStream() {
-  if (eventSource)
-    return
+  if (eventSource) return
 
   eventSource = new EventSource('/events')
 
-  eventSource.onmessage = async (event) => {
+  eventSource.onmessage = async event => {
     try {
       const data = JSON.parse(event.data)
 
@@ -667,7 +666,7 @@ function startEventStream() {
     }
   }
 
-  eventSource.onerror = (error) => {
+  eventSource.onerror = error => {
     console.error('EventSource error:', error)
 
     // EventSource automatically reconnects, but we can handle errors here
@@ -688,11 +687,14 @@ window.addEventListener('load', () => {
 
   setTimeout(() => {
     if (window.arweaveWallet) {
-      log('Wallet extension detected. Waiting for connection request...')
+      log(`${window.arweaveWallet?.name || 'Arweave'} wallet extension detected. Waiting for connection request...`)
       setState(States.DISCONNECTED, '⏳ Waiting for connection request...')
     } else {
-      setState(States.ERROR, 'No Arweave wallet extension detected<br><small>Please install Wander or any other compatible wallet and refresh this page</small>')
+      setState(
+        States.ERROR,
+        'No Arweave wallet extension detected<br><small>Please install Wander or any other compatible wallet and refresh this page</small>',
+      )
       log('Please install Wander or any other compatible wallet extension', 'error')
     }
-  }, WALLET_INJECTION_DELAY)
+  }, 500)
 })

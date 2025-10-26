@@ -44,7 +44,6 @@ Thank you for considering contributing to node-arweave-wallet! We welcome contri
 ### Development Guidelines
 
 1. **Code style**:
-
    - Follow the coding style and guidelines as configured in our ESLint setup.
    - Ensure code formatting using ESLint. We have `lint-staged` configured to run `eslint --fix` on staged files before committing.
 

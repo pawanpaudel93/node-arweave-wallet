@@ -6,9 +6,7 @@ import { minify as minifyJS } from 'terser'
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: [
-    'src/index.ts',
-  ],
+  entry: ['src/index.ts'],
   dts: true,
   minify: true,
   onSuccess: async () => {
@@ -37,7 +35,9 @@ export default defineConfig({
 
     if (minifiedJS.code) {
       writeFileSync(join('dist', 'signer.js'), minifiedJS.code, 'utf-8')
-      console.log(`✓ Minified signer.js: ${jsContent.length} → ${minifiedJS.code.length} bytes (${((1 - minifiedJS.code.length / jsContent.length) * 100).toFixed(1)}% reduction)`)
+      console.log(
+        `✓ Minified signer.js: ${jsContent.length} → ${minifiedJS.code.length} bytes (${((1 - minifiedJS.code.length / jsContent.length) * 100).toFixed(1)}% reduction)`,
+      )
     }
 
     // Minify and copy signer.html
@@ -54,6 +54,8 @@ export default defineConfig({
     })
 
     writeFileSync(join('dist', 'signer.html'), minifiedHTML, 'utf-8')
-    console.log(`✓ Minified signer.html: ${htmlContent.length} → ${minifiedHTML.length} bytes (${((1 - minifiedHTML.length / htmlContent.length) * 100).toFixed(1)}% reduction)`)
+    console.log(
+      `✓ Minified signer.html: ${htmlContent.length} → ${minifiedHTML.length} bytes (${((1 - minifiedHTML.length / htmlContent.length) * 100).toFixed(1)}% reduction)`,
+    )
   },
 })

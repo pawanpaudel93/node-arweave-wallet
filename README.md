@@ -31,17 +31,14 @@ import { NodeArweaveWallet } from 'node-arweave-wallet'
 
 // Create wallet instance
 const wallet = new NodeArweaveWallet({
-  port: 3737 // Optional: defaults to 3737, use 0 for random port
+  port: 3737, // Optional: defaults to 3737, use 0 for random port
 })
 
 // Initialize - opens browser for wallet connection
 await wallet.initialize()
 
 // Connect with required permissions
-await wallet.connect([
-  'ACCESS_ADDRESS',
-  'SIGN_TRANSACTION'
-])
+await wallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION'])
 
 // Get wallet address
 const address = await wallet.getActiveAddress()
@@ -69,7 +66,7 @@ Creates a new wallet instance.
 
 ```typescript
 const wallet = new NodeArweaveWallet({
-  port: 3737 // Optional: port number (default: 3737, use 0 for random)
+  port: 3737, // Optional: port number (default: 3737, use 0 for random)
 })
 ```
 
@@ -86,13 +83,10 @@ await wallet.initialize()
 Connects to the wallet with specified permissions, app info and gateway.
 
 ```typescript
-await wallet.connect(
-  ['ACCESS_ADDRESS', 'SIGN_TRANSACTION'],
-  {
-    name: 'My App',
-    logo: 'https://example.com/logo.png'
-  }
-)
+await wallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION'], {
+  name: 'My App',
+  logo: 'https://example.com/logo.png',
+})
 ```
 
 **Available Permissions:**
@@ -190,11 +184,11 @@ import Arweave from 'arweave'
 const arweave = new Arweave({
   host: 'arweave.net',
   port: 443,
-  protocol: 'https'
+  protocol: 'https',
 })
 
 const tx = await arweave.createTransaction({
-  data: 'Hello Arweave!'
+  data: 'Hello Arweave!',
 })
 
 await wallet.sign(tx)
@@ -206,7 +200,7 @@ Signs and dispatches a transaction to the network.
 
 ```typescript
 const tx = await arweave.createTransaction({
-  data: 'Hello Arweave!'
+  data: 'Hello Arweave!',
 })
 tx.addTag('Content-Type', 'text/plain')
 
@@ -224,10 +218,10 @@ const signedDataItem = await wallet.signDataItem({
   data: 'Hello from data item!',
   tags: [
     { name: 'Content-Type', value: 'text/plain' },
-    { name: 'App-Name', value: 'MyApp' }
+    { name: 'App-Name', value: 'MyApp' },
   ],
   target: 'target_address',
-  anchor: 'anchor'
+  anchor: 'anchor',
 })
 
 // Returns: Uint8Array of signed data item
@@ -241,12 +235,12 @@ Signs multiple data items in a batch.
 const results = await wallet.batchSignDataItem([
   {
     data: 'First item',
-    tags: [{ name: 'Type', value: 'Test1' }]
+    tags: [{ name: 'Type', value: 'Test1' }],
   },
   {
     data: 'Second item',
-    tags: [{ name: 'Type', value: 'Test2' }]
-  }
+    tags: [{ name: 'Type', value: 'Test2' }],
+  },
 ])
 
 // Returns: Array<{ id: string, raw: Uint8Array }>
@@ -259,7 +253,7 @@ Encrypts data using the wallet's public key.
 ```typescript
 const encrypted = await wallet.encrypt('Secret message', {
   algorithm: 'RSA-OAEP',
-  hash: 'SHA-256'
+  hash: 'SHA-256',
 })
 
 // Returns: Uint8Array
@@ -272,7 +266,7 @@ Decrypts data using the wallet's private key.
 ```typescript
 const decrypted = await wallet.decrypt(encrypted, {
   algorithm: 'RSA-OAEP',
-  hash: 'SHA-256'
+  hash: 'SHA-256',
 })
 
 const text = new TextDecoder().decode(decrypted)
@@ -286,7 +280,7 @@ Signs a message with the wallet's private key.
 ```typescript
 const data = new TextEncoder().encode('Message to sign')
 const signature = await wallet.signMessage(data, {
-  hashAlgorithm: 'SHA-256' // or 'SHA-384', 'SHA-512'
+  hashAlgorithm: 'SHA-256', // or 'SHA-384', 'SHA-512'
 })
 
 // Returns: Uint8Array signature
@@ -301,7 +295,7 @@ const isValid = await wallet.verifyMessage(
   data,
   signature,
   publicKey, // optional
-  { hashAlgorithm: 'SHA-256' }
+  { hashAlgorithm: 'SHA-256' },
 )
 
 // Returns: boolean
@@ -315,7 +309,7 @@ Signs arbitrary data with custom algorithm.
 const data = new TextEncoder().encode('Data to sign')
 const signature = await wallet.signature(data, {
   name: 'RSA-PSS',
-  saltLength: 32
+  saltLength: 32,
 })
 
 // Returns: Uint8Array
@@ -328,7 +322,7 @@ Creates a hash using the wallet's private key.
 ```typescript
 const data = new TextEncoder().encode('Data to hash')
 const hash = await wallet.privateHash(data, {
-  hashAlgorithm: 'SHA-256'
+  hashAlgorithm: 'SHA-256',
 })
 
 // Returns: Uint8Array
@@ -442,7 +436,7 @@ async function deployFile(filePath: string) {
     const arweave = new Arweave({
       host: 'arweave.net',
       port: 443,
-      protocol: 'https'
+      protocol: 'https',
     })
 
     const data = fs.readFileSync(filePath)
@@ -482,16 +476,14 @@ async function sendAOMessage() {
   const messageId = await message({
     process: 'PROCESS_ID',
     signer,
-    tags: [
-      { name: 'Action', value: 'Balance' }
-    ]
+    tags: [{ name: 'Action', value: 'Balance' }],
   })
 
   console.log('Message sent:', messageId)
 
   const { Messages } = await result({
     message: messageId,
-    process: 'PROCESS_ID'
+    process: 'PROCESS_ID',
   })
 
   console.log('Response:', Messages[0].Data)
@@ -514,8 +506,8 @@ async function batchUpload(files: string[]) {
     data: fs.readFileSync(file),
     tags: [
       { name: 'Content-Type', value: 'application/octet-stream' },
-      { name: 'File-Name', value: path.basename(file) }
-    ]
+      { name: 'File-Name', value: path.basename(file) },
+    ],
   }))
 
   console.log(`📝 Signing ${files.length} files...`)
@@ -556,7 +548,7 @@ async function manageTokens() {
   // Get all user tokens
   const tokens = await wallet.userTokens({ fetchBalance: true })
   console.log(`\n📊 Your tokens (${tokens.length}):`)
-  tokens.forEach((token) => {
+  tokens.forEach(token => {
     console.log(`  • ${token.Name || token.Ticker || token.id}`)
     console.log(`    Denomination: ${token.Denomination}`)
   })

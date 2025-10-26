@@ -159,14 +159,9 @@ describe('nodeArweaveWallet API Methods', () => {
       expect(messageSignature instanceof Uint8Array).toBe(true)
       expect(messageSignature.length).toBeGreaterThan(0)
 
-      const isValidSignature = await arweaveWallet.verifyMessage(
-        data,
-        messageSignature,
-        publicKey,
-        {
-          hashAlgorithm: 'SHA-256',
-        },
-      )
+      const isValidSignature = await arweaveWallet.verifyMessage(data, messageSignature, publicKey, {
+        hashAlgorithm: 'SHA-256',
+      })
 
       expect(isValidSignature).toBe(true)
     })
@@ -178,14 +173,9 @@ describe('nodeArweaveWallet API Methods', () => {
         hashAlgorithm: 'SHA-256',
       })
 
-      const isValidSignature = await arweaveWallet.verifyMessage(
-        tamperedData,
-        messageSignature,
-        publicKey,
-        {
-          hashAlgorithm: 'SHA-256',
-        },
-      )
+      const isValidSignature = await arweaveWallet.verifyMessage(tamperedData, messageSignature, publicKey, {
+        hashAlgorithm: 'SHA-256',
+      })
 
       expect(isValidSignature).toBe(false)
     })
@@ -259,7 +249,7 @@ describe('nodeArweaveWallet API Methods', () => {
       expect(Array.isArray(batchResults)).toBe(true)
       expect(batchResults.length).toBe(3)
 
-      batchResults.forEach((result) => {
+      batchResults.forEach(result => {
         expect(result.id).toBeTruthy()
         expect(result.id).toMatch(/^[\w-]{43}$/)
         expect(result.raw).toBeDefined()

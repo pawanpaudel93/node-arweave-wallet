@@ -1,5 +1,23 @@
 import type { SignatureOptions } from 'arweave/node/lib/crypto/crypto-interface'
 import type Transaction from 'arweave/node/lib/transaction'
+import type {
+  ActiveTier,
+  AlgorithmIdentifier,
+  AppInfo,
+  DispatchResult,
+  EcdsaParams,
+  EncryptDecryptOptions,
+  Gateway,
+  NodeArweaveWalletConfig,
+  PendingRequest,
+  PermissionType,
+  RsaPssParams,
+  SignDataItemParams,
+  SigningResponse,
+  SignMessageOptions,
+  TokenInfo,
+  TokenType,
+} from './types'
 import { Buffer } from 'node:buffer'
 import { exec } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -12,154 +30,13 @@ import Arweave from 'arweave'
 import killPort from 'kill-port'
 import { nanoid } from 'nanoid'
 
-// ==================== Type Definitions ====================
-interface SigningResponse {
-  id: string
-  result?: any
-  error?: string
-}
-
-interface PendingRequest {
-  resolve: (value: any) => void
-  reject: (error: Error) => void
-  data?: {
-    type: string
-    params: any
-  }
-}
-
-export type PermissionType
-  = 'ACCESS_ADDRESS'
-    | 'ACCESS_PUBLIC_KEY'
-    | 'ACCESS_ALL_ADDRESSES'
-    | 'SIGN_TRANSACTION'
-    | 'ENCRYPT'
-    | 'DECRYPT'
-    | 'SIGNATURE'
-    | 'ACCESS_ARWEAVE_CONFIG'
-    | 'DISPATCH'
-    | 'ACCESS_TOKENS'
-
-export interface AppInfo {
-  name?: string
-  logo?: string
-}
-
-export interface Gateway {
-  host: string
-  port: number
-  protocol: 'http' | 'https'
-}
-
-export type TokenType = 'asset' | 'collectible'
-
-export interface DispatchResult {
-  id: string
-  type?: 'BASE' | 'BUNDLED'
-}
-
-export interface SignMessageOptions {
-  hashAlgorithm?: 'SHA-256' | 'SHA-384' | 'SHA-512'
-}
-
-export interface DataItem {
-  data: string | Uint8Array
-  target?: string
-  anchor?: string
-  tags?: {
-    name: string
-    value: string
-  }[]
-}
-
-export type AlgorithmIdentifier = string | Algorithm
-export interface Algorithm {
-  name: string
-}
-
-export interface RsaPssParams extends Algorithm {
-  name: 'RSA-PSS'
-  saltLength: number
-}
-
-export interface EcdsaParams extends Algorithm {
-  name: 'ECDSA'
-  hash: AlgorithmIdentifier
-}
-
-export type BufferSource = ArrayBufferView | ArrayBuffer
-
-export interface RsaOaepParams {
-  name: 'RSA-OAEP'
-  label?: BufferSource
-}
-
-export interface AesCtrParams {
-  name: 'AES-CTR'
-  counter: BufferSource
-  length: number
-}
-
-export interface AesCbcParams {
-  name: 'AES-CBC'
-  iv: BufferSource
-}
-
-export interface AesGcmParams {
-  name: 'AES-GCM'
-  iv: BufferSource
-  additionalData?: BufferSource
-  tagLength?: number
-}
-
-// New API format (current)
-export type EncryptDecryptAlgorithm = RsaOaepParams | AesCtrParams | AesCbcParams | AesGcmParams
-
-// Old deprecated format (for backwards compatibility)
-export interface DeprecatedEncryptDecryptOptions {
-  algorithm: string
-  hash: string
-  salt?: string
-}
-
-export type EncryptDecryptOptions = EncryptDecryptAlgorithm | DeprecatedEncryptDecryptOptions
-
-export interface TokenInfo {
-  id?: string
-  Name?: string
-  Ticker?: string
-  Logo?: string
-  Denomination: number
-  processId: string
-  lastUpdated?: string | null
-  type?: 'asset' | 'collectible'
-  hidden?: boolean
-  balance?: string
-}
-
-export type Tier = 'Prime' | 'Edge' | 'Reserve' | 'Select' | 'Core'
-
-export interface ActiveTier {
-  tier: Tier
-  balance: string
-  rank: '' | number
-  progress: number
-  snapshotTimestamp: number
-  totalHolders: number
-}
-
-export interface NodeArweaveWalletConfig {
-  port?: number // Port to listen on (default: 3737, use 0 for random)
-  freePort?: boolean // Automatically free port if it's already in use (default: false)
-}
-
 // ==================== Constants ====================
 const DEFAULT_PORT = 3737
 const DEFAULT_HOST = '127.0.0.1'
 const REQUEST_TIMEOUT = 120000 // 120 seconds
 const BROWSER_TIMEOUT = 30000 // 30 seconds
-const HEARTBEAT_CHECK_INTERVAL = 10000 // 10 seconds - check infrequently to reduce overhead
-const HEARTBEAT_TIMEOUT = 300000 // 5 minutes - very generous timeout for user interactions
+const HEARTBEAT_CHECK_INTERVAL = 10000 // 10 seconds
+const HEARTBEAT_TIMEOUT = 300000 // 5 minutes
 const SHUTDOWN_DELAY = 500 // 500ms
 const BROWSER_READY_DELAY = 500 // 500ms
 
@@ -265,21 +142,28 @@ export class NodeArweaveWallet {
                 // Retry starting the server
                 startServer()
               } catch (freeError: any) {
-                const errorMsg = `Failed to free the port ${this.config.port}. `
-                  + `Please either:\n`
-                  + `  1. Manually close the application using port ${this.config.port}, or\n`
-                  + `  2. Use a different port: new NodeArweaveWallet({ port: 0 }) for automatic selection\n`
-                  + `Error: ${freeError.message}`
+                const errorMsg =
+                  `Failed to free the port ${this.config.port}. ` +
+                  `Please either:\n` +
+                  `  1. Manually close the application using port ${this.config.port}, or\n` +
+                  `  2. Use a different port: new NodeArweaveWallet({ port: 0 }) for automatic selection\n` +
+                  `Error: ${freeError.message}`
                 reject(new Error(errorMsg))
               }
             } else if (this.config.freePort && hasRetried) {
-              reject(new Error(`Failed to start server on port ${this.config.port} after retry. The port may still be in use.`))
+              reject(
+                new Error(
+                  `Failed to start server on port ${this.config.port} after retry. The port may still be in use.`,
+                ),
+              )
             } else {
-              const errorMsg = `Port ${this.config.port} is already in use. `
-                + `Please either:\n`
-                + `  1. Close the application using port ${this.config.port}, or\n`
-                + `  2. Use a different port: new NodeArweaveWallet({ port: 0 }) for automatic selection, or\n`
-                + `  3. Enable automatic port freeing: new NodeArweaveWallet({ port: ${this.config.port}, freePort: true })`
+              const errorMsg =
+                `Port ${this.config.port} is already in use. ` +
+                `Please either:\n` +
+                `  1. Close the application using port ${this.config.port}, or\n` +
+                `  2. Use a different port: new NodeArweaveWallet({ port: 0 }) for automatic selection, or\n` +
+                `  3. Enable automatic port freeing: 
+                new NodeArweaveWallet({ port: ${this.config.port}, freePort: true })`
               reject(new Error(errorMsg))
             }
           } else {
@@ -310,11 +194,7 @@ export class NodeArweaveWallet {
    * )
    * ```
    */
-  async connect(
-    permissions: PermissionType[],
-    appInfo?: AppInfo,
-    gateway?: Gateway,
-  ): Promise<void> {
+  async connect(permissions: PermissionType[], appInfo?: AppInfo, gateway?: Gateway): Promise<void> {
     await this.waitForBrowserConnection()
     return this.makeWalletRequest<void>('connect', { permissions, appInfo, gateway })
   }
@@ -333,8 +213,7 @@ export class NodeArweaveWallet {
    * ```
    */
   async getActiveAddress(): Promise<string> {
-    if (this.address)
-      return this.address
+    if (this.address) return this.address
 
     this.address = await this.makeWalletRequest<string>('getActiveAddress', {})
     return this.address
@@ -452,12 +331,12 @@ export class NodeArweaveWallet {
    * })
    * ```
    */
-  async signature(
-    data: Uint8Array,
-    algorithm: AlgorithmIdentifier | RsaPssParams | EcdsaParams,
-  ): Promise<Uint8Array> {
+  async signature(data: Uint8Array, algorithm: AlgorithmIdentifier | RsaPssParams | EcdsaParams): Promise<Uint8Array> {
     const dataBase64 = bufferToBase64(data)
-    const result = await this.makeWalletRequest<string>('signature', { data: dataBase64, algorithm })
+    const result = await this.makeWalletRequest<string>('signature', {
+      data: dataBase64,
+      algorithm,
+    })
     return base64ToBuffer(result)
   }
 
@@ -537,10 +416,7 @@ export class NodeArweaveWallet {
    * })
    * ```
    */
-  async encrypt(
-    data: string | Uint8Array,
-    options: EncryptDecryptOptions,
-  ): Promise<Uint8Array> {
+  async encrypt(data: string | Uint8Array, options: EncryptDecryptOptions): Promise<Uint8Array> {
     const dataToEncrypt = typeof data === 'string' ? data : bufferToBase64(data)
     const result = await this.makeWalletRequest<string>('encrypt', { data: dataToEncrypt, options })
     return base64ToBuffer(result)
@@ -574,10 +450,7 @@ export class NodeArweaveWallet {
    * const text = new TextDecoder().decode(decrypted)
    * ```
    */
-  async decrypt(
-    data: Uint8Array,
-    options: EncryptDecryptOptions,
-  ): Promise<Uint8Array> {
+  async decrypt(data: Uint8Array, options: EncryptDecryptOptions): Promise<Uint8Array> {
     const dataBase64 = bufferToBase64(data)
     const result = await this.makeWalletRequest<string>('decrypt', { data: dataBase64, options })
     return base64ToBuffer(result)
@@ -600,7 +473,10 @@ export class NodeArweaveWallet {
    */
   async privateHash(data: Uint8Array | ArrayBuffer, options?: SignMessageOptions): Promise<Uint8Array> {
     const dataBase64 = bufferToBase64(data)
-    const result = await this.makeWalletRequest<string>('privateHash', { data: dataBase64, options })
+    const result = await this.makeWalletRequest<string>('privateHash', {
+      data: dataBase64,
+      options,
+    })
     return base64ToBuffer(result)
   }
 
@@ -661,7 +537,7 @@ export class NodeArweaveWallet {
    * })
    * ```
    */
-  async signDataItem(dataItem: DataItem, options?: SignatureOptions): Promise<Uint8Array> {
+  async signDataItem(dataItem: SignDataItemParams, options?: SignatureOptions): Promise<Uint8Array> {
     const params = {
       data: typeof dataItem.data === 'string' ? dataItem.data : bufferToBase64(dataItem.data),
       tags: dataItem.tags || [],
@@ -691,7 +567,10 @@ export class NodeArweaveWallet {
    */
   async signMessage(data: Uint8Array | ArrayBuffer, options?: SignMessageOptions): Promise<Uint8Array> {
     const dataBase64 = bufferToBase64(data)
-    const result = await this.makeWalletRequest<string>('signMessage', { data: dataBase64, options })
+    const result = await this.makeWalletRequest<string>('signMessage', {
+      data: dataBase64,
+      options,
+    })
     return base64ToBuffer(result)
   }
 
@@ -749,9 +628,9 @@ export class NodeArweaveWallet {
    * ```
    */
   async batchSignDataItem(
-    dataItems: DataItem[],
+    dataItems: SignDataItemParams[],
     options?: SignatureOptions,
-  ): Promise<Array<{ id: string, raw: Uint8Array }>> {
+  ): Promise<Array<{ id: string; raw: Uint8Array }>> {
     const items = dataItems.map(item => ({
       data: typeof item.data === 'string' ? item.data : bufferToBase64(item.data),
       tags: item.tags || [],
@@ -759,13 +638,13 @@ export class NodeArweaveWallet {
       anchor: item.anchor,
     }))
 
-    const results = await this.makeWalletRequest<Array<{ signedDataItem: string }>>(
-      'batchSignDataItem',
-      { dataItems: items, options },
-    )
+    const results = await this.makeWalletRequest<Array<{ signedDataItem: string }>>('batchSignDataItem', {
+      dataItems: items,
+      options,
+    })
 
     return Promise.all(
-      results.map(async (result) => {
+      results.map(async result => {
         const signedBuffer = base64ToBuffer(result.signedDataItem)
         const dataItem = new ArBundlesDataItem(Buffer.from(signedBuffer))
         const itemId = await dataItem.id
@@ -893,8 +772,7 @@ export class NodeArweaveWallet {
    * ```
    */
   async close(status: 'success' | 'failed' = 'success'): Promise<void> {
-    if (!this.server)
-      return
+    if (!this.server) return
 
     if (!this.complete) {
       this.markComplete(status)
@@ -940,8 +818,8 @@ export class NodeArweaveWallet {
         for (const [id, pending] of this.pendingRequests.entries()) {
           pending.reject(
             new Error(
-              `Browser connection timeout after ${timeoutMinutes} minutes. `
-              + 'Please ensure the browser window stays open during signing operations.',
+              `Browser connection timeout after ${timeoutMinutes} minutes. ` +
+                'Please ensure the browser window stays open during signing operations.',
             ),
           )
           this.pendingRequests.delete(id)
@@ -992,7 +870,7 @@ export class NodeArweaveWallet {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*',
     })
 
@@ -1032,8 +910,7 @@ export class NodeArweaveWallet {
   }
 
   private sendSSERequest(id: string, type: string, data: any): void {
-    if (!this.sseClient)
-      return
+    if (!this.sseClient) return
 
     const event = JSON.stringify({ id, type, data })
     try {
@@ -1045,8 +922,7 @@ export class NodeArweaveWallet {
   }
 
   private sendSSEComplete(status: 'success' | 'failed'): void {
-    if (!this.sseClient)
-      return
+    if (!this.sseClient) return
 
     const event = JSON.stringify({ type: 'completed', status })
     try {
@@ -1058,7 +934,7 @@ export class NodeArweaveWallet {
   }
 
   private handleResponse(req: http.IncomingMessage, res: http.ServerResponse): void {
-    this.readRequestBody(req, (body) => {
+    this.readRequestBody(req, body => {
       try {
         const response: SigningResponse = JSON.parse(body)
         const pending = this.pendingRequests.get(response.id)
@@ -1163,7 +1039,7 @@ export class NodeArweaveWallet {
 
     const command = commands[process.platform] || `xdg-open "${url}"`
 
-    exec(command, (error) => {
+    exec(command, error => {
       if (error) {
         console.error('Failed to open browser automatically:', error.message)
         console.log(`Please open this URL manually: ${url}`)

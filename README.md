@@ -81,63 +81,7 @@ const wallet = new NodeArweaveWallet({
 })
 ```
 
-**Browser Options:**
-
-You can specify which browser to open for wallet connection:
-
-```typescript
-// Use a specific browser by name
-const wallet = new NodeArweaveWallet({ browser: 'chrome' })    // Google Chrome
-const wallet = new NodeArweaveWallet({ browser: 'firefox' })   // Firefox
-const wallet = new NodeArweaveWallet({ browser: 'safari' })    // Safari (macOS)
-const wallet = new NodeArweaveWallet({ browser: 'edge' })      // Microsoft Edge
-const wallet = new NodeArweaveWallet({ browser: 'brave' })     // Brave Browser
-const wallet = new NodeArweaveWallet({ browser: 'opera' })     // Opera
-
-// Use a custom browser path
-const wallet = new NodeArweaveWallet({ 
-  browser: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' 
-})
-
-// Disable auto-opening (you'll need to open the URL manually)
-const wallet = new NodeArweaveWallet({ browser: false })
-```
-
-**Browser Profile Options:**
-
-You can also specify a browser profile to use:
-
-```typescript
-// Chrome/Edge/Brave - use profile directory name (NOT the display name!)
-const wallet = new NodeArweaveWallet({ 
-  browser: 'chrome',
-  browserProfile: 'Profile 1'  // or 'Default', 'Profile 2', etc.
-})
-
-// Firefox - use profile name
-const wallet = new NodeArweaveWallet({ 
-  browser: 'firefox',
-  browserProfile: 'dev-edition-default'  // or your custom profile name
-})
-```
-
-**Important:** The library automatically resolves display names to directory names for Chrome/Edge/Brave!
-
-- **Chrome/Edge/Brave:** You can use either the display name ("Work") or directory name ("Profile 2")
-- **Firefox:** Use the profile name exactly as shown in the profile manager
-
-**How to find your profile name:**
-
-1. **Chrome/Edge/Brave:** 
-   - Open `chrome://version/` (or `edge://version/`, `brave://version/`)
-   - Look for "Profile Path"
-   - You can use either:
-     - The display name shown in the browser UI: `'Work'`, `'Personal'`
-     - The directory name (last part of path): `'Default'`, `'Profile 1'`, `'Profile 2'`
-
-2. **Firefox:** 
-   - Run `firefox -P` to open the profile manager
-   - Use the exact profile name shown (e.g., `'default-release'`, `'dev-edition-default'`)
+See [Configuration](#️-configuration) for more information.
 
 #### `wallet.initialize()`
 
@@ -507,6 +451,70 @@ const wallet = new NodeArweaveWallet({
 ```
 
 **Note:** The timeout applies to individual wallet operations (signing, encrypting, etc.). If the user doesn't respond within this time, the operation will fail with a timeout error.
+
+**Browser Options:**
+
+You can specify which browser to open for wallet connection:
+
+```typescript
+// Use a specific browser by name
+const wallet = new NodeArweaveWallet({ browser: 'chrome' })    // Google Chrome
+const wallet = new NodeArweaveWallet({ browser: 'firefox' })   // Firefox
+const wallet = new NodeArweaveWallet({ browser: 'edge' })      // Microsoft Edge
+const wallet = new NodeArweaveWallet({ browser: 'brave' })     // Brave Browser
+const wallet = new NodeArweaveWallet({ browser: 'opera' })     // Opera
+
+// Disable auto-opening (you'll need to open the URL manually)
+const wallet = new NodeArweaveWallet({ browser: false })
+```
+
+**Browser Profile Options:**
+
+You can also specify a browser profile to use:
+
+```typescript
+// Chromium-based browsers (Chrome, Edge, Brave, Opera, Vivaldi)
+// Use profile directory name OR display name (auto-resolved)
+const wallet = new NodeArweaveWallet({ 
+  browser: 'chrome',
+  browserProfile: 'Profile 1'  // or 'Default', 'Profile 2', 'Work', 'Personal', etc.
+})
+
+// Firefox-based browsers (Firefox, Zen)
+// Use profile name exactly as shown in profile manager
+const wallet = new NodeArweaveWallet({ 
+  browser: 'firefox',
+  browserProfile: 'dev-edition-default'  // or your custom profile name
+})
+
+// Opera (Note: Opera doesn't support profile arguments, profile option is ignored)
+const wallet = new NodeArweaveWallet({ 
+  browser: 'opera'
+  // browserProfile is not supported for Opera
+})
+```
+
+**Important:** The library automatically resolves display names to directory names for some Chromium-based browsers!
+
+- **Chrome/Edge/Brave/Vivaldi:** You can use either the display name ("Work") or directory name ("Profile 2")
+- **Firefox/Zen:** Use the profile name exactly as shown in the profile manager
+- **Opera:** Profile selection is not supported (profile option is ignored)
+
+**How to find your profile name:**
+
+1. **Chrome/Edge/Brave/Vivaldi:**
+   - Open `chrome://version/` (or `edge://version/`, `brave://version/`, `vivaldi://version/`)
+   - Look for "Profile Path"
+   - You can use either:
+     - The display name shown in the browser UI: `'Work'`, `'Personal'`
+     - The directory name (last part of path): `'Default'`, `'Profile 1'`, `'Profile 2'`
+
+2. **Firefox/Zen:**
+   - Run `firefox -P` (or `zen -P`) to open the profile manager
+   - Use the exact profile name shown (e.g., `'default-release'`, `'dev-edition-default'`)
+
+3. **Opera:**
+   - Profile selection is not supported by Opera's command-line interface
 
 ## 💡 Usage Examples
 

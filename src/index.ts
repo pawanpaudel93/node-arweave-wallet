@@ -1037,6 +1037,11 @@ export class NodeArweaveWallet {
         win32: join(home, 'AppData/Local/Microsoft/Edge/User Data'),
         linux: join(home, '.config/microsoft-edge'),
       },
+      vivaldi: {
+        darwin: join(home, 'Library/Application Support/Vivaldi'),
+        win32: join(home, 'AppData/Local/Vivaldi/User Data'),
+        linux: join(home, '.config/vivaldi'),
+      },
     }
 
     return paths[browser]?.[platform] ?? null

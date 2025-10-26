@@ -26,39 +26,21 @@ import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { DataItem as ArBundlesDataItem } from '@dha-team/arbundles/node'
-import Arweave from 'arweave'
 import killPort from 'kill-port'
 import { nanoid } from 'nanoid'
+import {
+  arweave,
+  BROWSER_READY_DELAY,
+  BROWSER_TIMEOUT,
+  DEFAULT_HOST,
+  DEFAULT_PORT,
+  HEARTBEAT_CHECK_INTERVAL,
+  HEARTBEAT_TIMEOUT,
+  REQUEST_TIMEOUT,
+  SHUTDOWN_DELAY,
+} from './constants'
+import { base64ToBuffer, bufferToBase64 } from './utils'
 
-// ==================== Constants ====================
-const DEFAULT_PORT = 3737
-const DEFAULT_HOST = '127.0.0.1'
-const REQUEST_TIMEOUT = 120000 // 120 seconds
-const BROWSER_TIMEOUT = 30000 // 30 seconds
-const HEARTBEAT_CHECK_INTERVAL = 10000 // 10 seconds
-const HEARTBEAT_TIMEOUT = 300000 // 5 minutes
-const SHUTDOWN_DELAY = 500 // 500ms
-const BROWSER_READY_DELAY = 500 // 500ms
-
-const ARWEAVE_CONFIG = {
-  host: 'arweave.net',
-  port: 443,
-  protocol: 'https' as const,
-}
-
-const arweave = new Arweave(ARWEAVE_CONFIG)
-
-// ==================== Helper Functions ====================
-function bufferToBase64(buffer: Uint8Array | ArrayBuffer): string {
-  const uint8Array = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer
-  return Buffer.from(uint8Array).toString('base64')
-}
-
-function base64ToBuffer(base64: string): Uint8Array {
-  return Buffer.from(base64, 'base64')
-}
-
-// ==================== NodeArweaveWallet Class ====================
 /**
  * NodeArweaveWallet is a class that provides a local HTTP server for wallet interaction.
  * It allows applications to interact with Arweave wallets browser extension.

@@ -172,6 +172,15 @@ function setTheme(theme, logChange = true) {
   }
 }
 
+// eslint-disable-next-line no-unused-vars, unused-imports/no-unused-vars
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light'
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark'
+  setTheme(newTheme, true)
+  // Mark that user has manually set a theme preference
+  localStorage.setItem('theme-manual', 'true')
+}
+
 // ==================== Request Queue Management ====================
 function addToQueue(id, type, status = 'pending') {
   requestQueue.set(id, { type, status, timestamp: Date.now() })

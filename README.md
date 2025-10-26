@@ -27,7 +27,14 @@ yarn add node-arweave-wallet
 ## 🚀 Quick Start
 
 ```typescript
+import Arweave from 'arweave'
 import { NodeArweaveWallet } from 'node-arweave-wallet'
+
+const arweave = new Arweave({
+  host: 'arweave.net',
+  port: 443,
+  protocol: 'https',
+})
 
 // Create wallet instance
 const wallet = new NodeArweaveWallet({
@@ -222,8 +229,7 @@ const signedDataItem = await wallet.signDataItem({
     { name: 'Content-Type', value: 'text/plain' },
     { name: 'App-Name', value: 'MyApp' },
   ],
-  target: 'target_address',
-  anchor: 'anchor',
+  target: 'target_address'
 })
 
 // Returns: Uint8Array of signed data item
@@ -448,6 +454,8 @@ const wallet = new NodeArweaveWallet({
 
 ```typescript
 #!/usr/bin/env node
+import fs from 'node:fs'
+import process from 'node:process'
 import Arweave from 'arweave'
 import { NodeArweaveWallet } from 'node-arweave-wallet'
 
@@ -525,6 +533,8 @@ async function sendAOMessage() {
 ### Batch Data Item Example
 
 ```typescript
+import fs from 'node:fs'
+import path from 'node:path'
 import { NodeArweaveWallet } from 'node-arweave-wallet'
 
 async function batchUpload(files: string[]) {
@@ -552,7 +562,7 @@ async function batchUpload(files: string[]) {
 }
 ```
 
-### Token Management Example
+### Token, Balance & Tier Example
 
 ```typescript
 import { NodeArweaveWallet } from 'node-arweave-wallet'
@@ -562,16 +572,8 @@ async function manageTokens() {
   await wallet.initialize()
   await wallet.connect(['ACCESS_ADDRESS', 'ACCESS_TOKENS'])
 
-  // Add a token to the wallet
-  const tokenId = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' // $U token
-  await wallet.addToken(tokenId, 'asset')
-  console.log('✅ Token added!')
-
-  // Check if token is added
-  const isAdded = await wallet.isTokenAdded(tokenId)
-  console.log(`Token added: ${isAdded}`)
-
   // Get token balance
+  const tokenId = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' // $U token
   const balance = await wallet.tokenBalance(tokenId)
   console.log(`Balance: ${balance}`)
 

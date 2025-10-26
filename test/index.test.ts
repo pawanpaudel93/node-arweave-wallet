@@ -1,4 +1,4 @@
-import type { PermissionType } from '../src'
+import type { PermissionType } from '../src/types'
 import Arweave from 'arweave'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { NodeArweaveWallet } from '../src'
@@ -46,6 +46,7 @@ describe('nodeArweaveWallet API Methods', () => {
   }, 60000) // 60 second timeout for initialization
 
   afterAll(async () => {
+    await arweaveWallet.disconnect()
     await arweaveWallet.close('success')
   })
 

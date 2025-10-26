@@ -989,11 +989,9 @@ export class NodeArweaveWallet {
 
     try {
       if (this.config.browser) {
-        const browserName = this.getBrowserName(this.config.browser)
+        const openOptions: any = { app: { name: this.getBrowserName(this.config.browser) } }
 
-        const openOptions: any = { app: { name: browserName } }
-
-        if (this.config.browserProfile) {
+        if (this.config.browserProfile && this.config.browser !== 'opera') {
           openOptions.app.arguments = this.getBrowserProfileArgs(this.config.browser)
           openOptions.newInstance = true
         }
@@ -1016,56 +1014,67 @@ export class NodeArweaveWallet {
       edge: apps.edge,
       brave: apps.brave,
     }
-    return browserMap[browserLower] || browser
+    return browserMap[browserLower] ?? browser
+  }
+
+  private getBrowserDataPath(browser: string): string | null {
+    const platform = process.platform
+    const home = homedir()
+
+    const paths: Record<string, Record<string, string>> = {
+      chrome: {
+        darwin: join(home, 'Library/Application Support/Google/Chrome'),
+        win32: join(home, 'AppData/Local/Google/Chrome/User Data'),
+        linux: join(home, '.config/google-chrome'),
+      },
+      brave: {
+        darwin: join(home, 'Library/Application Support/BraveSoftware/Brave-Browser'),
+        win32: join(home, 'AppData/Local/BraveSoftware/Brave-Browser/User Data'),
+        linux: join(home, '.config/BraveSoftware/Brave-Browser'),
+      },
+      edge: {
+        darwin: join(home, 'Library/Application Support/Microsoft Edge'),
+        win32: join(home, 'AppData/Local/Microsoft/Edge/User Data'),
+        linux: join(home, '.config/microsoft-edge'),
+      },
+    }
+
+    return paths[browser]?.[platform] ?? null
   }
 
   private resolveProfileName(browser: string, profileName: string): string {
     const browserLower = browser.toLowerCase()
 
-    if (browserLower === 'chrome' || browserLower === 'edge' || browserLower === 'brave') {
-      try {
-        const platform = process.platform
-        const browserDataPaths: Record<string, string> = {
-          chrome:
-            platform === 'darwin'
-              ? join(homedir(), 'Library/Application Support/Google/Chrome')
-              : platform === 'win32'
-                ? join(homedir(), 'AppData/Local/Google/Chrome/User Data')
-                : join(homedir(), '.config/google-chrome'),
-          brave:
-            platform === 'darwin'
-              ? join(homedir(), 'Library/Application Support/BraveSoftware/Brave-Browser')
-              : platform === 'win32'
-                ? join(homedir(), 'AppData/Local/BraveSoftware/Brave-Browser/User Data')
-                : join(homedir(), '.config/BraveSoftware/Brave-Browser'),
-          edge:
-            platform === 'darwin'
-              ? join(homedir(), 'Library/Application Support/Microsoft Edge')
-              : platform === 'win32'
-                ? join(homedir(), 'AppData/Local/Microsoft/Edge/User Data')
-                : join(homedir(), '.config/microsoft-edge'),
-        }
+    // Only Chromium-based browsers support profile directory resolution
+    if (!['chrome', 'edge', 'brave', 'opera', 'vivaldi'].includes(browserLower)) {
+      return profileName
+    }
 
-        const basePath = browserDataPaths[browserLower]
-        if (basePath && existsSync(basePath)) {
-          const localStatePath = join(basePath, 'Local State')
-          if (existsSync(localStatePath)) {
-            const localState = JSON.parse(readFileSync(localStatePath, 'utf-8'))
-            const profileInfo = localState?.profile?.info_cache
-
-            if (profileInfo) {
-              for (const [dirName, info] of Object.entries(profileInfo)) {
-                const profileData = info as any
-                if (profileData.name === profileName || profileData.gaia_name === profileName) {
-                  return dirName
-                }
-              }
-            }
-          }
-        }
-      } catch {
-        // Ignore errors
+    try {
+      const basePath = this.getBrowserDataPath(browserLower)
+      if (!basePath || !existsSync(basePath)) {
+        return profileName
       }
+
+      const localStatePath = join(basePath, 'Local State')
+      if (!existsSync(localStatePath)) {
+        return profileName
+      }
+
+      const localState = JSON.parse(readFileSync(localStatePath, 'utf-8'))
+      const profileInfo = localState?.profile?.info_cache
+
+      if (!profileInfo) return profileName
+
+      // Search for matching profile by name or gaia_name
+      for (const [dirName, info] of Object.entries(profileInfo)) {
+        const profileData = info as any
+        if (profileData.name === profileName || profileData.gaia_name === profileName) {
+          return dirName
+        }
+      }
+    } catch {
+      // Silently fall back to original profile name on any error
     }
 
     return profileName
@@ -1079,14 +1088,12 @@ export class NodeArweaveWallet {
 
     const resolvedProfile = this.resolveProfileName(browserLower, profile)
 
-    if (browserLower === 'chrome' || browserLower === 'edge' || browserLower === 'brave') {
-      return [`--profile-directory=${resolvedProfile}`]
-    }
-
-    if (browserLower === 'firefox') {
+    // Firefox uses different profile arguments
+    if (browserLower === 'firefox' || browserLower === 'zen') {
       return ['-P', resolvedProfile]
     }
 
+    // Chromium-based browsers (Chrome, Edge, Brave) and others
     return [`--profile-directory=${resolvedProfile}`]
   }
 

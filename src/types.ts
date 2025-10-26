@@ -138,11 +138,10 @@ export interface NodeArweaveWalletConfig {
   requestTimeout?: number
   /**
    * Browser to open (default: system default browser)
-   * - Use browser name: 'chrome', 'firefox', 'edge', 'brave'
-   * - Or provide full path: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+   * - Use browser name: 'chrome', 'firefox', 'edge', 'brave', 'safari', 'opera', 'zen', 'vivaldi' (or any other browser name)
    * - Or use false to disable auto-opening
    */
-  browser?: string | false
+  browser?: 'chrome' | 'firefox' | 'edge' | 'brave' | 'safari' | 'opera' | 'zen' | 'vivaldi' | (string & {}) | false
   /**
    * Browser profile to use (optional)
    * - Chrome/Edge: Profile name (e.g., 'Default', 'Profile 1', 'Work')

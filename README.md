@@ -94,7 +94,7 @@ Connects to the wallet with specified permissions, app info and gateway.
 ```typescript
 await wallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION'], {
   name: 'My App',
-  logo: 'https://example.com/logo.png',
+  logo: 'https://arweave.net/azW8iYR5A6bPXyS6WpMmw-qLTXNleS-vv4LJDR9Hf-s',
 })
 ```
 

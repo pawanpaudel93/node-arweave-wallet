@@ -168,7 +168,7 @@ export class NodeArweaveWallet {
    * ```typescript
    * await wallet.connect(
    *   ['ACCESS_ADDRESS', 'SIGN_TRANSACTION', 'DISPATCH'],
-   *   { name: 'My App', logo: 'https://example.com/logo.png' }
+   *   { name: 'My App', logo: 'https://arweave.net/azW8iYR5A6bPXyS6WpMmw-qLTXNleS-vv4LJDR9Hf-s' }
    * )
    * ```
    */

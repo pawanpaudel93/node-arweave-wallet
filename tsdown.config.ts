@@ -14,7 +14,7 @@ export default defineConfig({
     mkdirSync('dist', { recursive: true })
 
     // Minify and copy signer.js
-    const jsContent = readFileSync(join('src', 'signer.js'), 'utf-8')
+    const jsContent = readFileSync(join('src', 'signer', 'signer.js'), 'utf-8')
     const minifiedJS = await minifyJS(jsContent, {
       compress: {
         dead_code: true,
@@ -41,7 +41,7 @@ export default defineConfig({
     }
 
     // Minify and copy signer.html
-    const htmlContent = readFileSync(join('src', 'signer.html'), 'utf-8')
+    const htmlContent = readFileSync(join('src', 'signer', 'signer.html'), 'utf-8')
     const minifiedHTML = await minifyHTML(htmlContent, {
       collapseWhitespace: true,
       removeComments: true,

@@ -19,15 +19,16 @@ import type {
   TokenType,
 } from './types'
 import { Buffer } from 'node:buffer'
-import { exec } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import http from 'node:http'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { DataItem as ArBundlesDataItem } from '@dha-team/arbundles/node'
 import killPort from 'kill-port'
 import { nanoid } from 'nanoid'
+import open, { apps } from 'open'
 import {
   arweave,
   BROWSER_READY_DELAY,
@@ -65,6 +66,8 @@ export class NodeArweaveWallet {
       port: config.port ?? DEFAULT_PORT,
       freePort: config.freePort ?? false,
       requestTimeout: config.requestTimeout ?? DEFAULT_REQUEST_TIMEOUT,
+      browser: config.browser,
+      browserProfile: config.browserProfile,
     }
   }
 
@@ -89,13 +92,13 @@ export class NodeArweaveWallet {
       const startServer = () => {
         this.server = http.createServer((req, res) => this.handleRequest(req, res))
 
-        this.server.listen(this.config.port, DEFAULT_HOST, () => {
+        this.server.listen(this.config.port, DEFAULT_HOST, async () => {
           const addr = this.server!.address() as any
           this.port = addr.port
           console.log(`\n🌐 Arweave wallet signer started at http://localhost:${this.port}`)
           console.log('📱 Opening browser for wallet connection...\n')
 
-          this.openBrowser(`http://localhost:${this.port}`)
+          await this.openBrowser(`http://localhost:${this.port}`)
 
           resolve()
         })
@@ -977,20 +980,114 @@ export class NodeArweaveWallet {
     }
   }
 
-  private openBrowser(url: string): void {
-    const commands: Record<string, string> = {
-      darwin: `open "${url}"`,
-      win32: `start "${url}"`,
+  private async openBrowser(url: string): Promise<void> {
+    if (this.config.browser === false) {
+      console.log(`\n🌐 Browser URL: ${url}`)
+      console.log('(Auto-open disabled - please open manually)\n')
+      return
     }
 
-    const command = commands[process.platform] || `xdg-open "${url}"`
+    try {
+      if (this.config.browser) {
+        const browserName = this.getBrowserName(this.config.browser)
 
-    exec(command, error => {
-      if (error) {
-        console.error('Failed to open browser automatically:', error.message)
-        console.log(`Please open this URL manually: ${url}`)
+        const openOptions: any = { app: { name: browserName } }
+
+        if (this.config.browserProfile) {
+          openOptions.app.arguments = this.getBrowserProfileArgs(this.config.browser)
+          openOptions.newInstance = true
+        }
+
+        await open(url, openOptions)
+      } else {
+        await open(url)
       }
-    })
+    } catch (error: any) {
+      console.error('Failed to open browser automatically:', error.message)
+      console.log(`Please open this URL manually: ${url}`)
+    }
+  }
+
+  private getBrowserName(browser: string): string | readonly string[] {
+    const browserLower = browser.toLowerCase()
+    const browserMap: Record<string, string | readonly string[]> = {
+      chrome: apps.chrome,
+      firefox: apps.firefox,
+      edge: apps.edge,
+      brave: apps.brave,
+    }
+    return browserMap[browserLower] || browser
+  }
+
+  private resolveProfileName(browser: string, profileName: string): string {
+    const browserLower = browser.toLowerCase()
+
+    if (browserLower === 'chrome' || browserLower === 'edge' || browserLower === 'brave') {
+      try {
+        const platform = process.platform
+        const browserDataPaths: Record<string, string> = {
+          chrome:
+            platform === 'darwin'
+              ? join(homedir(), 'Library/Application Support/Google/Chrome')
+              : platform === 'win32'
+                ? join(homedir(), 'AppData/Local/Google/Chrome/User Data')
+                : join(homedir(), '.config/google-chrome'),
+          brave:
+            platform === 'darwin'
+              ? join(homedir(), 'Library/Application Support/BraveSoftware/Brave-Browser')
+              : platform === 'win32'
+                ? join(homedir(), 'AppData/Local/BraveSoftware/Brave-Browser/User Data')
+                : join(homedir(), '.config/BraveSoftware/Brave-Browser'),
+          edge:
+            platform === 'darwin'
+              ? join(homedir(), 'Library/Application Support/Microsoft Edge')
+              : platform === 'win32'
+                ? join(homedir(), 'AppData/Local/Microsoft/Edge/User Data')
+                : join(homedir(), '.config/microsoft-edge'),
+        }
+
+        const basePath = browserDataPaths[browserLower]
+        if (basePath && existsSync(basePath)) {
+          const localStatePath = join(basePath, 'Local State')
+          if (existsSync(localStatePath)) {
+            const localState = JSON.parse(readFileSync(localStatePath, 'utf-8'))
+            const profileInfo = localState?.profile?.info_cache
+
+            if (profileInfo) {
+              for (const [dirName, info] of Object.entries(profileInfo)) {
+                const profileData = info as any
+                if (profileData.name === profileName || profileData.gaia_name === profileName) {
+                  return dirName
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore errors
+      }
+    }
+
+    return profileName
+  }
+
+  private getBrowserProfileArgs(browser: string): string[] {
+    const browserLower = browser.toLowerCase()
+    const profile = this.config.browserProfile
+
+    if (!profile) return []
+
+    const resolvedProfile = this.resolveProfileName(browserLower, profile)
+
+    if (browserLower === 'chrome' || browserLower === 'edge' || browserLower === 'brave') {
+      return [`--profile-directory=${resolvedProfile}`]
+    }
+
+    if (browserLower === 'firefox') {
+      return ['-P', resolvedProfile]
+    }
+
+    return [`--profile-directory=${resolvedProfile}`]
   }
 
   private getSignerHTML(): string {

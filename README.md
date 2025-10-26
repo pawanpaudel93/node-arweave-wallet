@@ -76,8 +76,68 @@ const wallet = new NodeArweaveWallet({
   port: 3737,              // Optional: port number (default: 3737, use 0 for random)
   freePort: false,         // Optional: auto-free port if in use (default: false)
   requestTimeout: 300000,  // Optional: request timeout in ms (default: 5 minutes)
+  browser: 'chrome',       // Optional: specify browser (default: system default)
+  browserProfile: 'Work',  // Optional: specify browser profile
 })
 ```
+
+**Browser Options:**
+
+You can specify which browser to open for wallet connection:
+
+```typescript
+// Use a specific browser by name
+const wallet = new NodeArweaveWallet({ browser: 'chrome' })    // Google Chrome
+const wallet = new NodeArweaveWallet({ browser: 'firefox' })   // Firefox
+const wallet = new NodeArweaveWallet({ browser: 'safari' })    // Safari (macOS)
+const wallet = new NodeArweaveWallet({ browser: 'edge' })      // Microsoft Edge
+const wallet = new NodeArweaveWallet({ browser: 'brave' })     // Brave Browser
+const wallet = new NodeArweaveWallet({ browser: 'opera' })     // Opera
+
+// Use a custom browser path
+const wallet = new NodeArweaveWallet({ 
+  browser: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' 
+})
+
+// Disable auto-opening (you'll need to open the URL manually)
+const wallet = new NodeArweaveWallet({ browser: false })
+```
+
+**Browser Profile Options:**
+
+You can also specify a browser profile to use:
+
+```typescript
+// Chrome/Edge/Brave - use profile directory name (NOT the display name!)
+const wallet = new NodeArweaveWallet({ 
+  browser: 'chrome',
+  browserProfile: 'Profile 1'  // or 'Default', 'Profile 2', etc.
+})
+
+// Firefox - use profile name
+const wallet = new NodeArweaveWallet({ 
+  browser: 'firefox',
+  browserProfile: 'dev-edition-default'  // or your custom profile name
+})
+```
+
+**Important:** The library automatically resolves display names to directory names for Chrome/Edge/Brave!
+
+- **Chrome/Edge/Brave:** You can use either the display name ("Work") or directory name ("Profile 2")
+- **Firefox:** Use the profile name exactly as shown in the profile manager
+
+**How to find your profile name:**
+
+1. **Chrome/Edge/Brave:** 
+   - Open `chrome://version/` (or `edge://version/`, `brave://version/`)
+   - Look for "Profile Path"
+   - You can use either:
+     - The display name shown in the browser UI: `'Work'`, `'Personal'`
+     - The directory name (last part of path): `'Default'`, `'Profile 1'`, `'Profile 2'`
+
+2. **Firefox:** 
+   - Run `firefox -P` to open the profile manager
+   - Use the exact profile name shown (e.g., `'default-release'`, `'dev-edition-default'`)
 
 #### `wallet.initialize()`
 

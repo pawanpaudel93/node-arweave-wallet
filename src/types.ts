@@ -136,4 +136,18 @@ export interface NodeArweaveWalletConfig {
   freePort?: boolean
   /** Timeout for wallet requests in milliseconds (default: 300000 = 5 minutes) */
   requestTimeout?: number
+  /**
+   * Browser to open (default: system default browser)
+   * - Use browser name: 'chrome', 'firefox', 'edge', 'brave'
+   * - Or provide full path: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+   * - Or use false to disable auto-opening
+   */
+  browser?: string | false
+  /**
+   * Browser profile to use (optional)
+   * - Chrome/Edge: Profile name (e.g., 'Default', 'Profile 1', 'Work')
+   * - Firefox: Profile name (e.g., 'default-release', 'dev-edition-default')
+   * - Note: Profile support varies by browser and platform
+   */
+  browserProfile?: string
 }

@@ -60,7 +60,8 @@
     "@dha-team/arbundles": "catalog:",
     "arweave": "catalog:",
     "kill-port": "catalog:",
-    "nanoid": "catalog:"
+    "nanoid": "catalog:",
+    "open": "catalog:"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:cli",

@@ -346,7 +346,7 @@ describe('nodeArweaveWallet API Methods', () => {
 
         // Validate progress is between 0 and 1
         expect(tierInfo.progress).toBeGreaterThanOrEqual(0)
-        expect(tierInfo.progress).toBeLessThanOrEqual(1)
+        expect(tierInfo.progress).toBeLessThanOrEqual(100)
       } catch (error: any) {
         // API might not be supported by the wallet
         expect(error.message).toContain('not supported')

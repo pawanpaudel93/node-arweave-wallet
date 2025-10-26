@@ -341,7 +341,7 @@ const hash = await wallet.privateHash(data, {
 Gets the balance for a specific token.
 
 ```typescript
-const balance = await wallet.tokenBalance('xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10')
+const balance = await wallet.tokenBalance('7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4')
 // Returns: string (balance as string representation)
 
 // Convert to number if needed
@@ -391,7 +391,7 @@ const tierInfo = await wallet.getWanderTierInfo()
 // }
 
 console.log(`Tier: ${tierInfo.tier}`)
-console.log(`Progress: ${(tierInfo.progress * 100).toFixed(2)}%`)
+console.log(`Progress: ${tierInfo.progress.toFixed(2)}%`)
 console.log(`Total Holders: ${tierInfo.totalHolders}`)
 ```
 
@@ -573,7 +573,7 @@ async function manageTokens() {
   await wallet.connect(['ACCESS_ADDRESS', 'ACCESS_TOKENS'])
 
   // Get token balance
-  const tokenId = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' // $U token
+  const tokenId = '7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4' // WNDR token
   const balance = await wallet.tokenBalance(tokenId)
   console.log(`Balance: ${balance}`)
 
@@ -589,7 +589,7 @@ async function manageTokens() {
   try {
     const tierInfo = await wallet.getWanderTierInfo()
     console.log(`\n🏆 Wander Tier: ${tierInfo.tier}`)
-    console.log(`   Progress: ${(tierInfo.progress * 100).toFixed(2)}%`)
+    console.log(`   Progress: ${tierInfo.progress.toFixed(2)}%`)
     console.log(`   Rank: ${tierInfo.rank || 'N/A'}`)
     console.log(`   Total Holders: ${tierInfo.totalHolders}`)
   } catch (error) {

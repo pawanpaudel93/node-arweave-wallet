@@ -470,7 +470,7 @@ export class NodeArweaveWallet {
    *
    * @example
    * ```typescript
-   * await wallet.addToken('xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'asset')
+   * await wallet.addToken('7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4', 'asset')
    * ```
    */
   async addToken(id: string, type?: TokenType, gateway?: Gateway): Promise<void> {
@@ -487,7 +487,7 @@ export class NodeArweaveWallet {
    *
    * @example
    * ```typescript
-   * const isAdded = await wallet.isTokenAdded('xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10')
+   * const isAdded = await wallet.isTokenAdded('7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4')
    * console.log('Token added:', isAdded)
    * ```
    */
@@ -641,7 +641,7 @@ export class NodeArweaveWallet {
    *
    * @example
    * ```typescript
-   * const balance = await wallet.tokenBalance('xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10')
+   * const balance = await wallet.tokenBalance('7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4')
    * console.log('Token balance:', balance)
    * ```
    */
@@ -681,7 +681,7 @@ export class NodeArweaveWallet {
    * ```typescript
    * const tierInfo = await wallet.getWanderTierInfo()
    * console.log(`Tier: ${tierInfo.tier}`)
-   * console.log(`Progress: ${(tierInfo.progress * 100).toFixed(2)}%`)
+   * console.log(`Progress: ${tierInfo.progress.toFixed(2)}%`)
    * console.log(`Rank: ${tierInfo.rank || 'N/A'}`)
    * ```
    */

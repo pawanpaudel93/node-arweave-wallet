@@ -56,6 +56,8 @@ export class NodeArweaveWallet {
   private readonly config: NodeArweaveWalletConfig
   private readonly pendingRequests = new Map<string, PendingRequest>()
   private sseClient: http.ServerResponse | null = null
+  private _walletName: string = ''
+  private _walletVersion: string = ''
 
   private address: string | null = null
   private browserConnected = false
@@ -155,6 +157,14 @@ export class NodeArweaveWallet {
 
       startServer()
     })
+  }
+
+  get walletName(): string {
+    return this._walletName
+  }
+
+  get walletVersion(): string {
+    return this._walletVersion
   }
 
   /**
@@ -792,6 +802,7 @@ export class NodeArweaveWallet {
       'GET /': () => this.handleGetRoot(res),
       'GET /events': () => this.handleSSE(res),
       'POST /response': () => this.handleResponse(req, res),
+      'POST /wallet-info': () => this.handleWalletInfo(req, res),
     }
 
     const key = `${req.method} ${req.url}`
@@ -896,6 +907,25 @@ export class NodeArweaveWallet {
             pending.resolve(response.result)
           }
           this.pendingRequests.delete(response.id)
+        }
+
+        this.sendJSON(res, 200, { success: true })
+      } catch (error: any) {
+        this.sendJSON(res, 400, { error: error.message })
+      }
+    })
+  }
+
+  private handleWalletInfo(req: http.IncomingMessage, res: http.ServerResponse): void {
+    this.readRequestBody(req, body => {
+      try {
+        const info = JSON.parse(body)
+
+        if (!this._walletName && !this._walletVersion) {
+          this._walletName = info.name || 'Unknown Wallet'
+          this._walletVersion = info.version || '1.0.0'
+
+          console.log(`📱 Wallet detected: ${this._walletName} (v${this._walletVersion})`)
         }
 
         this.sendJSON(res, 200, { success: true })

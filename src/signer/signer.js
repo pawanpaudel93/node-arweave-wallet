@@ -78,6 +78,8 @@ let currentState = States.DISCONNECTED
 let walletAddress = null
 let eventSource = null
 const requestQueue = new Map()
+let isWalletDetected = false
+let isWalletDetectionLogged = false
 
 // eslint-disable-next-line no-undef
 const arweave = Arweave.init({
@@ -268,6 +270,18 @@ async function sendResponse(id, result, error = null) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, result, error }),
   })
+}
+
+async function sendWalletInfo(walletName, walletVersion) {
+  try {
+    await fetch('/wallet-info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: walletName, version: walletVersion }),
+    })
+  } catch (error) {
+    console.error('Failed to send wallet info:', error)
+  }
 }
 
 /**
@@ -689,21 +703,46 @@ function startEventStream() {
 }
 
 // ==================== Initialization ====================
-window.addEventListener('load', () => {
-  cacheDOMElements()
-  initTheme()
-  startEventStream()
+async function handleWalletDetection() {
+  if (isWalletDetected && isWalletDetectionLogged) return
 
-  setTimeout(() => {
-    if (window.arweaveWallet) {
-      log(`${window.arweaveWallet?.name || 'Arweave'} wallet extension detected. Waiting for connection request...`)
-      setState(States.DISCONNECTED, '⏳ Waiting for connection request...')
-    } else {
+  if (!window.arweaveWallet) {
+    if (dom.log && !isWalletDetectionLogged) {
       setState(
         States.ERROR,
         'No Arweave wallet extension detected<br><small>Please install Wander or any other compatible wallet and refresh this page</small>',
       )
       log('Please install Wander or any other compatible wallet extension', 'error')
+      isWalletDetectionLogged = true
     }
-  }, 500)
+    return
+  }
+
+  const name = window.arweaveWallet?.walletName || 'Unknown Wallet'
+  const version = window.arweaveWallet?.walletVersion || '1.0.0'
+
+  if (dom.log && !isWalletDetectionLogged) {
+    log(`${name} (v${version}) detected. Waiting for connection request...`)
+    setState(States.DISCONNECTED, '⏳ Waiting for connection request...')
+    isWalletDetectionLogged = true
+  }
+
+  if (isWalletDetected) return
+  isWalletDetected = true
+  await sendWalletInfo(name, version)
+}
+
+// Initialize on load
+window.addEventListener('load', () => {
+  cacheDOMElements()
+  initTheme()
+  startEventStream()
+
+  if (window.arweaveWallet) {
+    handleWalletDetection()
+  } else {
+    setTimeout(handleWalletDetection, 500)
+  }
 })
+
+window.addEventListener('arweaveWalletLoaded', handleWalletDetection)

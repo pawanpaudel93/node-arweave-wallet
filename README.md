@@ -667,7 +667,6 @@ transferWNDR();
 ### ArNS domain purchase
 
 ```typescript
-  import type { Tag } from "arweave/node/lib/transaction";
   import { ARIO } from "@ar.io/sdk";
   import { ArconnectSigner as ArweaveSigner } from "@dha-team/arbundles";
 

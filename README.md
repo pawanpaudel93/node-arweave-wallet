@@ -7,6 +7,33 @@
 
 Use Arweave browser wallets ([Wander](https://wander.app) or any other compatible wallet) from Node.js applications. Perfect for CLI tools and scripts that need secure wallet interactions without exposing private keys.
 
+## 📑 Table of Contents
+
+- [Features](#-features)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [API Reference](#-api-reference)
+  - [Initialization & Connection](#initialization--connection)
+  - [Wallet APIs](#wallet-apis)
+- [Configuration](#️-configuration)
+  - [Port Configuration](#port-configuration)
+  - [Automatic Port Freeing](#automatic-port-freeing)
+  - [Request Timeout Configuration](#request-timeout-configuration)
+- [Usage Examples](#-usage-examples)
+  - [CLI Tool](#cli-tool)
+  - [AR Transfer](#ar-transfer)
+  - [AO Token (WNDR) Transfer](#ao-token-wndr-transfer)
+  - [ArNS domain purchase](#arns-domain-purchase)
+  - [Batch Data Item](#batch-data-item)
+  - [Token, Balance & Tier](#token-balance--tier)
+- [Security](#-security)
+- [Browser Wallet Compatibility](#-browser-wallet-compatibility)
+- [Troubleshooting](#-troubleshooting)
+  - [Port Already in Use](#port-already-in-use)
+  - [Browser Doesn't Open Automatically](#browser-doesnt-open-automatically)
+  - [Request Timeout](#request-timeout)
+- [License](#-license)
+
 ## ✨ Features
 
 - 🔐 **Full Arweave Wallet API Support** - Complete implementation of the arweaveWallet API
@@ -717,6 +744,8 @@ async function batchUpload(files: string[]) {
   signed.forEach((item, i) => {
     console.log(`   ${i + 1}. ${item.id}`)
   })
+
+  // upload the signed data items to the network
 
   await arweaveWallet.close('success')
 }

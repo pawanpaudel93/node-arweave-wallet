@@ -13,6 +13,7 @@ import type {
   PermissionType,
   RsaPssParams,
   SignDataItemParams,
+  Signer,
   SigningResponse,
   SignMessageOptions,
   TokenInfo,
@@ -33,9 +34,11 @@ import {
   arweave,
   BROWSER_READY_DELAY,
   BROWSER_TIMEOUT,
+  DATAITEM_SIGNER_KIND,
   DEFAULT_HOST,
   DEFAULT_PORT,
   DEFAULT_REQUEST_TIMEOUT,
+  HTTP_SIGNER_KIND,
   SHUTDOWN_DELAY,
 } from './constants'
 import { base64ToBuffer, bufferToBase64 } from './utils'
@@ -722,7 +725,7 @@ export class NodeArweaveWallet {
    * ```
    */
   getDataItemSigner() {
-    return this.createDataItemSigner()
+    return createDataItemSigner(this)
   }
 
   /**
@@ -987,29 +990,6 @@ export class NodeArweaveWallet {
     })
   }
 
-  private createDataItemSigner() {
-    return async (create: any) => {
-      const { data, tags, target, anchor } = await create({
-        alg: 'rsa-v1_5-sha256',
-        passthrough: true,
-      })
-
-      const signedBuffer = await this.signDataItem({
-        data,
-        tags: tags || [],
-        target,
-        anchor,
-      })
-
-      const dataItem = new ArBundlesDataItem(Buffer.from(signedBuffer))
-      const itemId = await dataItem.id
-      const rawBuffer = await dataItem.getRaw()
-      const raw = new Uint8Array(rawBuffer)
-
-      return { id: itemId, raw }
-    }
-  }
-
   private async openBrowser(url: string): Promise<void> {
     if (this.config.browser === false) {
       console.log(`\n🌐 Browser URL: ${url}`)
@@ -1146,7 +1126,59 @@ export class NodeArweaveWallet {
   }
 }
 
-// ==================== Exports ====================
+function createANS104Signer(arweaveWallet: NodeArweaveWallet) {
+  return async (create: any) => {
+    const { data, tags, target, anchor } = await create({
+      alg: 'rsa-v1_5-sha256',
+      passthrough: true,
+    })
+
+    const signedBuffer = await arweaveWallet.signDataItem({
+      data,
+      tags: tags || [],
+      target,
+      anchor,
+    })
+
+    const dataItem = new ArBundlesDataItem(Buffer.from(signedBuffer))
+    const itemId = await dataItem.id
+    const rawBuffer = await dataItem.getRaw()
+    const raw = new Uint8Array(rawBuffer)
+
+    return { id: itemId, raw }
+  }
+}
+
+function createHttpSigner(arweaveWallet: NodeArweaveWallet) {
+  const signer = async (create: any) =>
+    arweaveWallet
+      .connect(['ACCESS_ADDRESS', 'ACCESS_PUBLIC_KEY', 'SIGNATURE'])
+      .then(async () => {
+        const [publicKey, address] = await Promise.all([
+          arweaveWallet.getActivePublicKey(),
+          arweaveWallet.getActiveAddress(),
+        ])
+        return { publicKey, address }
+      })
+      .then(async ({ publicKey, address }) => {
+        const signatureBase = await create({
+          type: 1,
+          publicKey,
+          address,
+          alg: 'rsa-pss-sha512',
+        })
+
+        const view = await arweaveWallet.signMessage(signatureBase, { hashAlgorithm: 'SHA-512' })
+
+        return {
+          signature: Buffer.from(view),
+          address,
+        }
+      })
+
+  return signer
+}
+
 /**
  * Creates a DataItemSigner compatible with @permaweb/aoconnect.
  * This is a convenience function that wraps the wallet's getDataItemSigner() method.
@@ -1168,10 +1200,23 @@ export class NodeArweaveWallet {
  * const messageId = await message({
  *   process: 'PROCESS_ID',
  *   signer,
- *   tags: [{ name: 'Action', value: 'Balance' }]
+ *   tags: [
+ *    { name: 'Action', value: 'Transfer' },
+ *    { name: 'Recipient', value: 'address_to_send_to' },
+ *    { name: 'Quantity', value: '1000000000000000000' }
+ *  ]
  * })
  * ```
  */
 export function createDataItemSigner(arweaveWallet: NodeArweaveWallet) {
-  return arweaveWallet.getDataItemSigner()
+  const dataItemSigner = createANS104Signer(arweaveWallet)
+  const httpSigner = createHttpSigner(arweaveWallet)
+
+  const signer = (create: any, kind: string) => {
+    if (kind === DATAITEM_SIGNER_KIND) return dataItemSigner(create)
+    if (kind === HTTP_SIGNER_KIND) return httpSigner(create)
+    throw new Error(`signer kind unknown "${kind}"`)
+  }
+
+  return signer as Signer
 }

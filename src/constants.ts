@@ -14,3 +14,6 @@ export const ARWEAVE_CONFIG = {
 }
 
 export const arweave = new Arweave(ARWEAVE_CONFIG)
+
+export const DATAITEM_SIGNER_KIND = 'ans104'
+export const HTTP_SIGNER_KIND = 'httpsig'

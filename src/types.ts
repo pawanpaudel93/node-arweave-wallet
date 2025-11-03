@@ -150,3 +150,5 @@ export interface NodeArweaveWalletConfig {
    */
   browserProfile?: string
 }
+
+export type Signer = (...args: unknown[]) => unknown

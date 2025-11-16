@@ -836,6 +836,10 @@ const arweaveWallet = new NodeArweaveWallet({
 
 **Note:** Closing the browser tab will immediately interrupt operations regardless of the timeout setting.
 
+## Related
+
+- [ao-deploy](https://github.com/pawanpaudel93/ao-deploy) - Deploy AO contracts with ease.
+
 ## 📄 License
 
 [MIT](./LICENSE.md) License © [Pawan Paudel](https://github.com/pawanpaudel93)
